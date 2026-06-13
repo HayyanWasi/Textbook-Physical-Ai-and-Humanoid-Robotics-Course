@@ -1,0 +1,117 @@
+---
+title: "Chapter 2 — Nodes, Topics, and Services"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 2 — Nodes, Topics, and Services
+
+## Learning Objectives
+
+After completing this chapter, you will be able to:
+
+- Define a ROS 2 Node using the biological organ analogy and explain its role in the computation graph
+- Explain how Topics enable asynchronous, one-way data streaming between Nodes
+- Explain how Services enable synchronous, request-response communication between Nodes
+- Choose the appropriate communication pattern (Topic vs. Service) for a given robotics scenario
+
+## The ROS 2 Computation Graph
+
+Every running ROS 2 system can be visualised as a **computation graph**: a network of active processes connected by communication channels. This graph is not fixed at startup — Nodes can join and leave dynamically, and the graph reshapes itself in response.
+
+The graph has three fundamental building blocks:
+
+- **Nodes** — the processing units (the vertices of the graph)
+- **Topics** — one-way data channels (directed edges, asynchronous)
+- **Services** — request-response channels (paired edges, synchronous)
+
+The biological analogy that runs through this textbook maps cleanly here. The computation graph is the **nervous system** of the robot. Every sensation, decision, and action passes through it.
+
+:::note
+In ROS 2, you never call a hardware driver directly. You send messages through the graph. A Node that controls a motor never imports the motor's SDK — it subscribes to a velocity Topic and publishes to a command Topic. The motor driver Node is the only process that touches the hardware.
+:::
+
+## Nodes as Processing Organs
+
+A **Node** is a single, independently running process in the ROS 2 graph. Each Node has one job. A well-designed Node is focused: it takes input from the graph, processes it, and produces output back to the graph.
+
+Examples of Nodes in a humanoid robot:
+
+| Node Name | Responsibility |
+|---|---|
+| `camera_driver` | Reads frames from the camera hardware; publishes images to the graph |
+| `object_detector` | Subscribes to camera images; runs detection; publishes bounding boxes |
+| `path_planner` | Subscribes to detections and map data; publishes a trajectory |
+| `motor_controller` | Subscribes to the trajectory; sends commands to motor hardware |
+
+Each of these Nodes is **independent**. The `object_detector` does not know or care what camera is producing images — it only knows the Topic name and message type. If you replace the camera with a higher-resolution model, you update only the `camera_driver` Node.
+
+The organ analogy holds precisely here. A heart does not need to understand the chemistry of the lungs to pump oxygenated blood. It receives blood from the pulmonary vein and pumps it to the aorta — its interface is standard, its internals are independent. When a surgeon replaces a valve, the rest of the cardiovascular system adapts.
+
+Nodes are resilient by design. If the `object_detector` Node crashes, the `camera_driver` continues publishing. The `path_planner` receives no new detections and pauses, but it does not crash. The system degrades gracefully rather than failing catastrophically.
+
+## Topics as Neural Pathways
+
+A **Topic** is a named, typed, one-way data channel. A Node that produces data creates a **publisher** on a Topic. Any number of Nodes that need that data create **subscribers** on the same Topic. The publisher sends messages; subscribers receive them.
+
+Topics are **asynchronous**: the publisher sends without waiting for acknowledgement, and subscribers receive whenever a message arrives. This is the correct model for continuous data streams — sensor readings, camera frames, position estimates — where data flows constantly and no single consumer needs to gate the producer.
+
+Common Topic names you will encounter in a ROS 2 system:
+
+- `/camera/image_raw` — raw camera frames
+- `/lidar/scan` — LiDAR point cloud readings
+- `/odom` — odometry (position estimate from wheel encoders)
+- `/cmd_vel` — velocity commands sent to the base controller
+- `/detections` — object detection results
+
+The naming convention uses forward slashes and snake_case. The leading slash indicates a global (absolute) Topic name, accessible to any Node in the graph.
+
+:::tip
+Topics are fire-and-forget. The publisher doesn't know or care who is listening — or whether anyone is listening at all. If no subscriber is present, messages are simply discarded. This makes publishers completely decoupled from their consumers.
+:::
+
+**Multiple publishers and multiple subscribers** can exist on the same Topic simultaneously. Five camera driver Nodes can all publish to `/camera/image_raw`. Two downstream consumers — an object detector and a frame recorder — can both subscribe. This fan-out behaviour requires no coordination between the parties.
+
+## Services as Request-Response Reflexes
+
+A **Service** is a two-way, synchronous communication pattern. One Node (the **client**) sends a **request** to another Node (the **server**) and waits for a **response** before continuing. This is the ROS 2 equivalent of a function call across process boundaries.
+
+The reflex arc analogy is apt. When you touch a hot surface, a sensory signal travels to the spinal cord, triggers a motor response, and the hand withdraws — stimulus in, response out, synchronous. Services follow the same pattern: a precise request produces a precise response.
+
+Examples of when Services are the right tool:
+
+- Asking the map server: "What is the occupancy status of grid cell (42, 17)?" — discrete query, single answer
+- Commanding the arm: "Move joint 3 to 45 degrees" — one-shot action that must confirm completion
+- Requesting a parameter: "What is the current sensor calibration offset?" — configuration query
+
+Each of these interactions has a defined beginning and end. The client sends, waits, and receives. Unlike Topics, Services are not suitable for data that flows continuously — the blocking wait would prevent the client Node from doing anything else while waiting.
+
+## Choosing Between Topics and Services
+
+This is one of the most practically important decisions in ROS 2 system design. The wrong choice creates performance bottlenecks or architectural coupling. The right choice produces a clean, composable system.
+
+**Use a Topic when:**
+
+- Data flows continuously or at high frequency (sensor streams, camera frames, odometry)
+- Multiple consumers may exist and should all receive the same data
+- The producer does not need confirmation that the data was received or processed
+- The consumer should process data independently of whether the producer is still running
+
+**Use a Service when:**
+
+- A discrete action must complete before the system can proceed
+- Exactly one response is expected for each request
+- The interaction is inherently request-reply: a question with a specific answer
+- The calling Node needs to block until the action is confirmed
+
+:::warning
+A common mistake is using a Service for high-frequency sensor data. If your LiDAR fires 20 times per second and each scan triggers a Service call, the client Node blocks 20 times per second waiting for responses. This saturates the system and degrades real-time performance. High-frequency sensor data always belongs on a Topic.
+:::
+
+A useful mental test: if the communication could happen without a reply and still make sense, it is a Topic. If the sender fundamentally needs a response to continue, it is a Service.
+
+## Summary
+
+The ROS 2 computation graph is the nervous system of a robot: a dynamic network of Nodes connected by Topics and Services that allows software modules to communicate without direct coupling. Nodes are single-purpose processes — the organs of the graph — that can be started, stopped, and replaced independently without disrupting the rest of the system. Topics are the neural pathways: named, typed, asynchronous channels that carry continuous data streams from publishers to any number of subscribers, with no coordination required between them. Services are the reflex arcs: synchronous request-response channels for discrete, confirmable interactions where the caller must wait for an answer before proceeding.
+
+<RagChatbot context="module-1" />

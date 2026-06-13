@@ -1,0 +1,149 @@
+---
+title: "Chapter 6 — Simulating Physics and Collisions in Gazebo"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 6 — Simulating Physics and Collisions in Gazebo
+
+## Learning Objectives
+
+After completing this chapter, you will be able to:
+
+- Distinguish SDF (Simulation Description Format) world files from URDF robot descriptions, understanding that they are complementary formats serving different purposes
+- Interpret a Gazebo world file's gravity and physics parameters in plain language without needing to understand the underlying equations
+- Explain how Gazebo detects collisions between objects using simplified geometry and why this tradeoff is necessary for performance
+- Diagnose common physics misconfiguration symptoms in a Gazebo simulation by matching observable behaviour to the parameter most likely responsible
+
+## What a Gazebo World File Describes
+
+Module 1, Chapter 4 introduced **URDF** — the Unified Robot Description Format — as the XML file that describes a robot's physical body: its links (rigid body parts), joints (movement relationships), visual geometry (how it looks), collision geometry (how the physics engine approximates it), and inertial properties (mass distribution). URDF answers the question: *what is the robot made of and how does it move?*
+
+**SDF** — Simulation Description Format — is the companion format that answers a different question: *what is the world the robot lives in?* SDF is Gazebo's native file format. While URDF describes the robot, SDF describes the environment:
+
+- The gravitational field (direction and magnitude)
+- The ground plane and its surface properties (friction, restitution)
+- Objects in the world — walls, tables, boxes, obstacles
+- The physics engine selection and its numerical parameters
+- Ambient lighting conditions and shadows (for visual rendering)
+
+A Gazebo simulation loads both: the robot URDF is inserted into an SDF world. They coexist without conflict because they describe different things.
+
+```xml
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="test_environment">
+
+    <!-- Gravity: XYZ vector in m/s². Negative Z = downward on Earth. -->
+    <gravity>0 0 -9.8</gravity>
+
+    <!-- Physics engine selection and simulation timestep -->
+    <physics type="ode">
+      <!-- Time between each physics calculation, in seconds -->
+      <!-- Smaller = more accurate, but more CPU intensive -->
+      <max_step_size>0.001</max_step_size>
+
+      <!-- How fast simulation runs relative to real time -->
+      <!-- 1.0 = real-time, 2.0 = twice as fast as real time -->
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- A flat ground plane for the robot to stand on -->
+    <model name="ground_plane">
+      <static>true</static>  <!-- Static = doesn't move under gravity -->
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal></plane></geometry>
+        </collision>
+      </link>
+    </model>
+
+  </world>
+</sdf>
+```
+
+Each element above configures a physical property of the environment — not the robot's internal mechanics, but the rules of the world the robot inhabits.
+
+:::note
+URDF describes the robot. SDF describes the world the robot lives in. In a Gazebo simulation, your robot URDF is loaded as a model inside an SDF world file — the two formats are complementary, not competing. You will always use both: one defines the agent, the other defines the environment.
+:::
+
+## Configuring Gravity and Environmental Physics Parameters
+
+The `<gravity>` element accepts an XYZ vector where the values are accelerations in metres per second squared (m/s²). The vector direction determines which way objects fall; the magnitude determines how quickly.
+
+Changing the gravity vector is the most direct way to test robots in non-Earth environments:
+
+- Earth: `<gravity>0 0 -9.8</gravity>` — standard downward acceleration
+- Moon: `<gravity>0 0 -1.62</gravity>` — one-sixth of Earth gravity; objects fall slowly and jumps are very high
+- Microgravity: `<gravity>0 0 0</gravity>` — no net gravitational pull; objects float; useful for testing space manipulation
+- Tilted floor: `<gravity>0.5 0 -9.8</gravity>` — adds a sideways component; useful for testing balance on slopes without building a slope model
+
+The physics engine parameters control the tradeoff between simulation accuracy and computational cost:
+
+**`<max_step_size>`** is the time interval between each physics calculation, in seconds. A value of `0.001` means Gazebo computes the world state 1,000 times per second. A smaller step size catches fast-moving collisions that would otherwise be missed (a robot finger moving at 3 m/s crosses 3 mm per millisecond — a collision that lasts 2 milliseconds requires a step size under 2ms to detect reliably). A larger step size is faster to compute but may miss brief contact events.
+
+**`<real_time_factor>`** controls the pace of simulation. A factor of `1.0` means simulation advances at the same rate as wall-clock time — one second of simulation equals one second of real time. A factor of `2.0` means simulation runs twice as fast; a factor of `0.5` means it runs at half speed, useful for debugging fast events in slow motion.
+
+:::tip
+You do not need to understand the physics solver equations to configure these parameters. Think of `max_step_size` as the resolution of a clock — finer resolution catches more events but costs more processing. Think of `real_time_factor` as the playback speed of a video — 2x speed gets you to the end sooner but you might miss something if you blink. The Gazebo documentation describes every parameter with a plain-English explanation. You set the knobs; Gazebo does the physics.
+:::
+
+## How Gazebo Models Collision Between Objects
+
+At every simulation timestep, Gazebo checks whether any two collision geometries are intersecting. This process — collision detection — determines whether the robot's foot is touching the floor, whether its hand has made contact with an object, and whether two robot links have collided with each other.
+
+The collision geometry of each link is the simplified shape defined in the URDF's `<collision>` element (introduced in Module 1, Chapter 4). A robot arm's upper segment might have a detailed 50,000-polygon visual mesh, but its collision geometry is a single cylinder — a shape that can be tested for intersection far more quickly than a complex polygon mesh.
+
+When two collision geometries overlap, Gazebo applies a **contact force** — the physics engine pushes the objects apart with a force proportional to the penetration depth and the surface properties. This is how the floor supports the robot's weight: the ground plane's collision geometry and the robot foot's collision geometry touch, and the physics engine applies an upward normal force equal to the robot's weight component in that direction.
+
+Surface properties — friction and contact elasticity — are configured inside the SDF world or URDF file in the `<surface>` element:
+
+```xml
+<collision name="foot_collision">
+  <geometry>
+    <box><size>0.15 0.08 0.02</size></box>
+    <!-- 15cm x 8cm x 2cm box approximating a foot -->
+  </geometry>
+  <surface>
+    <!-- Friction in the sliding direction (mu1) and lateral direction (mu2) -->
+    <!-- Higher values = more grip; 0 = frictionless ice -->
+    <friction>
+      <ode>
+        <mu>0.8</mu>
+        <mu2>0.8</mu2>
+      </ode>
+    </friction>
+    <!-- Bounciness of contact: 0 = no bounce, 1 = perfectly elastic -->
+    <bounce>
+      <restitution_coefficient>0.0</restitution_coefficient>
+    </bounce>
+  </surface>
+</collision>
+```
+
+:::warning
+If your robot's collision geometry is too complex — using the full high-polygon visual mesh instead of simplified primitives — collision detection becomes computationally prohibitive. With a robot that has 20 links, each with a 50,000-polygon mesh, Gazebo must check for intersections between every pair of polygons at every timestep. This is why Module 1's Chapter 4 taught simplified collision primitives: boxes, cylinders, and spheres. The benefit is not aesthetic cleanliness — it is simulation performance. A cylinder approximating a robot arm takes microseconds to test for collision; the arm's actual visual mesh would take milliseconds. At 1,000 timesteps per second, the difference is the difference between a usable simulation and a system too slow to run in real time.
+:::
+
+## What Happens When Physics Parameters Are Wrong
+
+Physics misconfiguration in Gazebo produces distinctive, diagnosable behaviours. The symptoms are patterns, not mysteries — each one points to a specific parameter:
+
+**Robot falls through the floor**: The collision geometry for the robot's feet or base is missing, incorrectly positioned, or not set to be a collision object. The physics engine sees no geometry to push against, so gravity pulls the robot through the ground plane geometry unimpeded. Fix: verify `<collision>` elements are present in the robot's URDF for every link that should make contact with the world.
+
+**Robot tumbles immediately on spawn**: The mass and inertia values in the `<inertial>` tag (see Module 1, Chapter 4) are incorrect — either wildly wrong (e.g., a 1-gram mass assigned to a 5-kilogram link) or missing entirely. With incorrect inertial properties, the physics engine computes physically implausible forces when gravity is applied, causing the robot to spin, tumble, or launch into the air. Fix: use manufacturer datasheets or mesh analysis tools to set correct mass values, not guesswork.
+
+**Robot slides as if on ice**: The friction coefficient in the `<surface>` element is set to zero or a very small value. Without friction, contact forces are purely normal — the physics engine prevents penetration but applies no tangential resistance. A walking robot with zero foot friction can generate no forward thrust; it slides backward with every step. Fix: set `mu` and `mu2` to physically plausible values for rubber-on-floor contact (typically 0.6–1.0).
+
+**Joints reach impossible positions**: The joint limit constraints in the URDF are missing or set to allow full 360-degree rotation for a joint that should be a hinge with a 90-degree range. Without limits, the physics engine applies no constraint, and motor commands can drive the joint past its physical stop. Fix: review the `<limit>` element in each `<joint>` and confirm the `lower` and `upper` values match the physical hardware specifications.
+
+:::note
+Simulation debugging is pattern recognition, not equation solving. Each observable symptom maps predictably to a parameter. If the robot falls through the floor, the answer is in `<collision>`. If it tumbles on spawn, the answer is in `<inertial>`. If it slides, the answer is in `<surface>` friction. Building a mental map of symptom-to-parameter is more useful than understanding the physics equations that govern the behaviour.
+:::
+
+## Summary
+
+SDF is Gazebo's native world description format — distinct from URDF, which describes the robot body — and together they define the complete simulation environment: the agent (URDF) and the world it inhabits (SDF). The gravity vector and physics engine parameters in an SDF world file are configuration knobs that control the physical rules of the simulation without requiring knowledge of the equations those rules implement. Gazebo detects collisions between simplified primitive geometries at every simulation timestep, applying contact forces that replicate how physical surfaces push back against the robot — and the use of simplified collision primitives (boxes, cylinders, spheres) is a deliberate performance tradeoff that keeps the simulation computationally feasible. Physics misconfiguration produces characteristic, diagnosable symptoms — falling through floors, tumbling on spawn, sliding on contact, joints exceeding limits — each of which points directly to the parameter that needs correction.
+
+<RagChatbot context="module-2" />
