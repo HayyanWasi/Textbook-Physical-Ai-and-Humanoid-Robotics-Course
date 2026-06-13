@@ -4,7 +4,7 @@ description: "Task list for Module 1 — The Robotic Nervous System (ROS 2)"
 
 # Tasks: Module 1 — The Robotic Nervous System (ROS 2)
 
-**Input**: Design documents from `/specs/002-ros2-nervous-system/`
+**Input**: Design documents from `/specs/001-ros2-nervous-system/`
 **Prerequisites**: plan.md ✅ | spec.md ✅ | research.md ✅ | data-model.md ✅ | contracts/content-contract.md ✅
 
 **Tests**: No test tasks — content feature validated by build check and manual review (not explicitly requested in spec).

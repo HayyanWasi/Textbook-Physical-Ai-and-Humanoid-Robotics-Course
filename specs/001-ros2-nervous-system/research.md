@@ -1,6 +1,6 @@
 # Research: Module 1 — The Robotic Nervous System (ROS 2)
 
-**Branch**: `002-ros2-nervous-system` | **Date**: 2026-06-13
+**Branch**: `001-ros2-nervous-system` | **Date**: 2026-06-13
 **Phase**: 0 — Research & Unknowns Resolution
 
 ## Research Question 1: MDX Component Integration in Docusaurus v3

@@ -4,7 +4,7 @@ description: "Task list for Module 2 — The Digital Twin (Gazebo & Unity)"
 
 # Tasks: Module 2 — The Digital Twin (Gazebo & Unity)
 
-**Input**: Design documents from `/specs/003-digital-twin/`
+**Input**: Design documents from `/specs/002-digital-twin/`
 **Prerequisites**: plan.md ✅ | spec.md ✅ | research.md ✅ | data-model.md ✅ | contracts/content-contract.md ✅
 
 **Tests**: No test tasks — content feature validated by build check and manual review (not explicitly requested in spec).

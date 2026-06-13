@@ -1,6 +1,6 @@
 # Feature Specification: Module 2 — The Digital Twin (Gazebo & Unity)
 
-**Feature Branch**: `003-digital-twin`
+**Feature Branch**: `002-digital-twin`
 **Created**: 2026-06-13
 **Status**: Draft
 **Input**: User description: "The Digital Twin (Gazebo & Unity)"
@@ -9,7 +9,9 @@
 
 ### User Story 1 — The Digital Twin Concept and Gazebo Fundamentals (Priority: P1)
 
-An AI engineering student who has completed Module 1 reads Chapter 5 and can explain what a digital twin is, why it matters for physical AI development, and how Gazebo acts as the deterministic physics anchor in a simulation pipeline — without needing to understand the mathematics of rigid-body dynamics.
+An AI engineering student who has completed Module 1 reads 
+
+ 5 and can explain what a digital twin is, why it matters for physical AI development, and how Gazebo acts as the deterministic physics anchor in a simulation pipeline — without needing to understand the mathematics of rigid-body dynamics.
 
 **Why this priority**: The digital twin concept is the foundational prerequisite for all subsequent simulation content. Without understanding why a virtual robot must mirror a physical one, Chapters 6–8 lack motivational context. This is the MVP chapter for the module.
 
@@ -119,6 +121,6 @@ A student reads Chapter 8 and understands how simulated sensors (LiDAR, depth ca
 
 ## Dependencies
 
-- **Module 1 (003-digital-twin depends on 002-ros2-nervous-system)**: The ROS 2 topic names introduced in Module 1 (`/lidar/scan`, `/camera/image_raw`, `/odom`, `/cmd_vel`, `/detections`) are assumed knowledge in Chapter 8. Chapter 5 makes a brief back-reference to the ROS 2 graph concept.
+- **Module 1 (002-digital-twin depends on 001-ros2-nervous-system)**: The ROS 2 topic names introduced in Module 1 (`/lidar/scan`, `/camera/image_raw`, `/odom`, `/cmd_vel`, `/detections`) are assumed knowledge in Chapter 8. Chapter 5 makes a brief back-reference to the ROS 2 graph concept.
 - **`frontend/src/components/RagChatbot.jsx`**: Must exist before `npm run build` can succeed for Module 2 pages. Satisfied by Module 1 implementation.
 - **`frontend/sidebars.ts`**: Must contain the Module 1 category before Module 2 is appended. Satisfied by Module 1 implementation.

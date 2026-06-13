@@ -1,8 +1,8 @@
 # Content Contract: Module 2 — The Digital Twin (Gazebo & Unity)
 
-**Branch**: `003-digital-twin` | **Date**: 2026-06-13
+**Branch**: `002-digital-twin` | **Date**: 2026-06-13
 **Phase**: 1 — Design
-**Extends**: `specs/002-ros2-nervous-system/contracts/content-contract.md` v1.0.0
+**Extends**: `specs/001-ros2-nervous-system/contracts/content-contract.md` v1.0.0
 
 This contract defines the interface between the static MDX content layer (Docusaurus) and the
 downstream systems that consume it: the RAG ingestion pipeline (Qdrant) and the chat widget

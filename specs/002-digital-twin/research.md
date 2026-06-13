@@ -1,6 +1,6 @@
 # Research: Module 2 — The Digital Twin (Gazebo & Unity)
 
-**Branch**: `003-digital-twin` | **Date**: 2026-06-13
+**Branch**: `002-digital-twin` | **Date**: 2026-06-13
 **Phase**: 0 — Research & Unknowns Resolution
 
 ## Research Question 1: Gazebo Versions and ROS 2 Integration (Classic vs. Ignition/Gz)

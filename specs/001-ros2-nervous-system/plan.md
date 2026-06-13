@@ -1,7 +1,7 @@
 # Implementation Plan: Module 1 — The Robotic Nervous System (ROS 2)
 
-**Branch**: `002-ros2-nervous-system` | **Date**: 2026-06-13 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/002-ros2-nervous-system/spec.md`
+**Branch**: `001-ros2-nervous-system` | **Date**: 2026-06-13 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/001-ros2-nervous-system/spec.md`
 
 ## Summary
 
@@ -44,7 +44,7 @@ four chapters under a Module 1 category.
 ### Documentation (this feature)
 
 ```text
-specs/002-ros2-nervous-system/
+specs/001-ros2-nervous-system/
 ├── plan.md              # This file (/sp.plan command output)
 ├── research.md          # Phase 0 output
 ├── data-model.md        # Phase 1 output

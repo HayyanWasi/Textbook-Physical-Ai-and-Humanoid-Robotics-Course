@@ -1,6 +1,6 @@
 # Quickstart: Module 2 — The Digital Twin (Gazebo & Unity)
 
-**Branch**: `003-digital-twin` | **Date**: 2026-06-13
+**Branch**: `002-digital-twin` | **Date**: 2026-06-13
 
 This quickstart covers how to write, validate, and integrate a new chapter for Module 2 into
 the Docusaurus site. It extends the Module 1 quickstart with Module 2-specific conventions.

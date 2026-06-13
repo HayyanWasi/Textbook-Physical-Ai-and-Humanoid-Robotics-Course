@@ -1,6 +1,6 @@
 # Data Model: Module 2 — The Digital Twin (Gazebo & Unity)
 
-**Branch**: `003-digital-twin` | **Date**: 2026-06-13
+**Branch**: `002-digital-twin` | **Date**: 2026-06-13
 **Phase**: 1 — Design
 
 This module is a content feature (static MDX files), not a database-backed feature. The "data
@@ -128,7 +128,7 @@ Each chapter transitions independently. Chapter 5 (MVP) can be merged before Cha
 ## Dependency Map
 
 ```
-Module 1 (002-ros2-nervous-system) — provides:
+Module 1 (001-ros2-nervous-system) — provides:
   ├── RagChatbot.jsx stub (frontend/src/components/)
   ├── sidebars.ts with Module 1 category (append Module 2 after)
   └── ROS 2 topic names referenced in Chapter 8:
@@ -137,7 +137,7 @@ Module 1 (002-ros2-nervous-system) — provides:
       ├── /odom              (introduced in Ch. 2)
       └── /cmd_vel           (introduced in Ch. 2)
 
-Module 2 (003-digital-twin) — produces:
+Module 2 (002-digital-twin) — produces:
   ├── docs/module-2/chapter-5-digital-twin-gazebo.mdx
   ├── docs/module-2/chapter-6-physics-collisions.mdx
   ├── docs/module-2/chapter-7-unity-rendering.mdx

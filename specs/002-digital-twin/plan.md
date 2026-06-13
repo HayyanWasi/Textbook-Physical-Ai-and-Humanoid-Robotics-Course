@@ -1,7 +1,7 @@
 # Implementation Plan: Module 2 — The Digital Twin (Gazebo & Unity)
 
-**Branch**: `003-digital-twin` | **Date**: 2026-06-13 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/003-digital-twin/spec.md`
+**Branch**: `002-digital-twin` | **Date**: 2026-06-13 | **Spec**: [spec.md](./spec.md)
+**Input**: Feature specification from `/specs/002-digital-twin/spec.md`
 
 ## Summary
 
@@ -45,7 +45,7 @@ The module is integrated into the Docusaurus sidebar and RAG context as `"module
 ### Documentation (this feature)
 
 ```text
-specs/003-digital-twin/
+specs/002-digital-twin/
 ├── plan.md              # This file (/sp.plan command output)
 ├── research.md          # Phase 0 output ✅
 ├── data-model.md        # Phase 1 output ✅

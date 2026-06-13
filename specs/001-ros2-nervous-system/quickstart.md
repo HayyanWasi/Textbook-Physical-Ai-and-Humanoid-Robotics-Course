@@ -1,6 +1,6 @@
 # Quickstart: Module 1 — The Robotic Nervous System (ROS 2)
 
-**Branch**: `002-ros2-nervous-system` | **Date**: 2026-06-13
+**Branch**: `001-ros2-nervous-system` | **Date**: 2026-06-13
 
 This quickstart covers how to write, validate, and integrate a new chapter for Module 1 into
 the Docusaurus site.
