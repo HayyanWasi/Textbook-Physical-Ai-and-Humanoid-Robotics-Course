@@ -29,7 +29,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
 **Purpose**: Create directory structure before any content can be written or built.
 
-- [ ] T001 Create directory `frontend/docs/module-3/` — run `mkdir -p frontend/docs/module-3/`
+- [x] T001 Create directory `frontend/docs/module-3/` — run `mkdir -p frontend/docs/module-3/`
 
 **Checkpoint**: `frontend/docs/module-3/` directory exists.
 
@@ -41,8 +41,8 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
 **⚠️ CRITICAL**: No chapter can be build-verified until these pass.
 
-- [ ] T002 Verify `frontend/src/components/RagChatbot.jsx` has a valid default export — run `node -e "require('./frontend/src/components/RagChatbot.jsx')"` or confirm file exists and exports a function; if missing, create a minimal stub: `export default function RagChatbot({ context }) { return <div>RAG [{context}] — pending</div>; }`
-- [ ] T003 Verify `frontend/sidebars.ts` is syntactically valid and Module 1 + Module 2 entries are intact — open `frontend/sidebars.ts` and confirm the file has exactly two category entries (Module 1 and Module 2) before any modification; do NOT edit it yet
+- [x] T002 Verify `frontend/src/components/RagChatbot.jsx` has a valid default export — run `node -e "require('./frontend/src/components/RagChatbot.jsx')"` or confirm file exists and exports a function; if missing, create a minimal stub: `export default function RagChatbot({ context }) { return <div>RAG [{context}] — pending</div>; }`
+- [x] T003 Verify `frontend/sidebars.ts` is syntactically valid and Module 1 + Module 2 entries are intact — open `frontend/sidebars.ts` and confirm the file has exactly two category entries (Module 1 and Module 2) before any modification; do NOT edit it yet
 
 **Checkpoint**: `RagChatbot.jsx` confirmed importable; `sidebars.ts` confirmed valid with 2 existing categories.
 
@@ -56,7 +56,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Write `frontend/docs/module-3/chapter-9-advanced-perception.mdx` with the following exact structure and content:
+- [x] T004 [US1] Write `frontend/docs/module-3/chapter-9-advanced-perception.mdx` with the following exact structure and content:
 
   **Frontmatter + import**:
   ```
@@ -94,7 +94,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
   **Final line**: `<RagChatbot context="module-3" />`
 
-- [ ] T005 [US1] Run quality checks on `frontend/docs/module-3/chapter-9-advanced-perception.mdx`:
+- [x] T005 [US1] Run quality checks on `frontend/docs/module-3/chapter-9-advanced-perception.mdx`:
   - Word count: `wc -w frontend/docs/module-3/chapter-9-advanced-perception.mdx` — must be ≤ 4,500 (total file words)
   - Prohibited terms: `grep -in "cuda\|matrix\|jacobian\|covariance\|eigenvalue\|kalman\|pseudocode\|gpu kernel" frontend/docs/module-3/chapter-9-advanced-perception.mdx` — must return zero results
   - RagChatbot check: `grep "RagChatbot" frontend/docs/module-3/chapter-9-advanced-perception.mdx` — must return exactly one line: `<RagChatbot context="module-3" />`
@@ -112,7 +112,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
 ### Implementation for User Story 2
 
-- [ ] T006 [US2] Write `frontend/docs/module-3/chapter-10-isaac-sim-synthetic-data.mdx` with the following exact structure and content:
+- [x] T006 [US2] Write `frontend/docs/module-3/chapter-10-isaac-sim-synthetic-data.mdx` with the following exact structure and content:
 
   **Frontmatter + import**:
   ```
@@ -160,7 +160,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
   **Final line**: `<RagChatbot context="module-3" />`
 
-- [ ] T007 [US2] Run quality checks on `frontend/docs/module-3/chapter-10-isaac-sim-synthetic-data.mdx`:
+- [x] T007 [US2] Run quality checks on `frontend/docs/module-3/chapter-10-isaac-sim-synthetic-data.mdx`:
   - Word count ≤ 4,500 total words
   - Confirm `## Gazebo vs. Isaac Sim: A Direct Comparison` exists as a standalone H2 (run `grep "## Gazebo vs" frontend/docs/module-3/chapter-10-isaac-sim-synthetic-data.mdx`)
   - Prohibited terms check: `grep -in "cuda\|matrix\|jacobian\|gpu kernel" frontend/docs/module-3/chapter-10-isaac-sim-synthetic-data.mdx` — zero results
@@ -178,7 +178,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
 ### Implementation for User Story 3
 
-- [ ] T008 [US3] Write `frontend/docs/module-3/chapter-11-isaac-ros-vslam.mdx` with the following exact structure and content:
+- [x] T008 [US3] Write `frontend/docs/module-3/chapter-11-isaac-ros-vslam.mdx` with the following exact structure and content:
 
   **Frontmatter + import**:
   ```
@@ -214,7 +214,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
   **Final line**: `<RagChatbot context="module-3" />`
 
-- [ ] T009 [US3] Run quality checks on `frontend/docs/module-3/chapter-11-isaac-ros-vslam.mdx`:
+- [x] T009 [US3] Run quality checks on `frontend/docs/module-3/chapter-11-isaac-ros-vslam.mdx`:
   - Prohibited math terms: `grep -in "matrix\|jacobian\|covariance\|kalman\|eigenvalue\|pseudocode\|bundle adjustment\|factor graph" frontend/docs/module-3/chapter-11-isaac-ros-vslam.mdx` — must return zero results
   - Word count ≤ 4,500 total words
   - Confirm `## Loop Closure` and `## Building the Map` exist as standalone H2 sections
@@ -232,7 +232,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
 ### Implementation for User Story 4
 
-- [ ] T010 [US4] Write `frontend/docs/module-3/chapter-12-nav2-bipedal-planning.mdx` with the following exact structure and content:
+- [x] T010 [US4] Write `frontend/docs/module-3/chapter-12-nav2-bipedal-planning.mdx` with the following exact structure and content:
 
   **Frontmatter + import**:
   ```
@@ -282,7 +282,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
   **Final line**: `<RagChatbot context="module-3" />`
 
-- [ ] T011 [US4] Run quality checks on `frontend/docs/module-3/chapter-12-nav2-bipedal-planning.mdx`:
+- [x] T011 [US4] Run quality checks on `frontend/docs/module-3/chapter-12-nav2-bipedal-planning.mdx`:
   - Prohibited terms: `grep -in "cuda\|matrix\|jacobian\|kalman\|pseudocode\|algorithm" frontend/docs/module-3/chapter-12-nav2-bipedal-planning.mdx` — zero results (note: "algorithm" used generically is acceptable in non-code context; only flag if it appears with mathematical notation)
   - Confirm `## The Full Pipeline` section exists as standalone H2 (cross-module synthesis section)
   - Confirm the three constraints (centre-of-mass, footstep placement, gait cycle) are named explicitly
@@ -296,7 +296,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
 
 **Purpose**: Wire all four chapters into the sidebar, run the Docusaurus build, and verify the complete Module 3 experience end-to-end.
 
-- [ ] T012 Update `frontend/sidebars.ts` — open the file and append the following category object as the third entry in the `tutorialSidebar` array, after the Module 2 category closing brace:
+- [x] T012 Update `frontend/sidebars.ts` — open the file and append the following category object as the third entry in the `tutorialSidebar` array, after the Module 2 category closing brace:
   ```typescript
   {
     type: 'category',
@@ -312,7 +312,7 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
   ```
   Verify the existing Module 1 and Module 2 entries are unchanged.
 
-- [ ] T013 [P] Run cross-chapter quality sweep:
+- [x] T013 [P] Run cross-chapter quality sweep:
   - `grep -rh "RagChatbot" frontend/docs/module-3/` — must return exactly 4 lines, each `<RagChatbot context="module-3" />`
   - `grep -rin "cuda\|gpu kernel\|tensor" frontend/docs/module-3/` — zero results
   - `grep -n "## " frontend/docs/module-3/chapter-9-advanced-perception.mdx` — confirm 5+ H2 sections
@@ -320,9 +320,9 @@ description: "Task list for Module 3 — The AI-Robot Brain (NVIDIA Isaac™)"
   - `grep -n "## Loop Closure" frontend/docs/module-3/chapter-11-isaac-ros-vslam.mdx` — confirm line exists
   - `grep -n "## The Full Pipeline" frontend/docs/module-3/chapter-12-nav2-bipedal-planning.mdx` — confirm line exists
 
-- [ ] T014 Run the Docusaurus production build: `cd frontend && npm run build` — must complete with zero errors; any build error reveals a broken import, malformed MDX, or invalid sidebar entry
+- [x] T014 Run the Docusaurus production build: `cd frontend && npm run build` — must complete with zero errors; any build error reveals a broken import, malformed MDX, or invalid sidebar entry
 
-- [ ] T015 Start the local dev server: `cd frontend && npm start` — navigate to `http://localhost:3000`; verify:
+- [x] T015 Start the local dev server: `cd frontend && npm start` — navigate to `http://localhost:3000`; verify:
   - "Module 3: The AI-Robot Brain" appears in the left sidebar
   - All four chapter links are visible and navigable
   - Each chapter renders without errors

@@ -1,0 +1,140 @@
+---
+title: "Chapter 12 — Nav2 and Bipedal Path Planning"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 12 — Nav2 and Bipedal Path Planning
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+- Explain why path-planning algorithms designed for wheeled robots are insufficient and potentially dangerous for bipedal humanoids
+- Identify the three structural constraints unique to bipedal navigation: centre-of-mass stability, footstep placement, and gait cycle timing
+- Describe Nav2's role in the NVIDIA Isaac pipeline and the boundary between path planning and motion control
+- Trace the complete conceptual pipeline from camera input to footstep decision across all four Module 3 chapters
+- Articulate why bipedal navigation is inherently more conservative than wheeled navigation, and why safety rather than speed is the primary planning constraint
+
+---
+
+## Navigation for Legs Is Not Navigation for Wheels
+
+Most robotics navigation literature assumes a simple premise: the robot can stop at any point along its path, turn in any direction, and follow the computed route as long as it avoids obstacles. This assumption holds for differential-drive robots (two wheels) and holonomic platforms (which can move freely in any direction). For these platforms, the path is a curve through free space — any curve that avoids obstacles is, in principle, safe to follow.
+
+For a bipedal humanoid, every one of these assumptions fails.
+
+A bipedal robot cannot stop instantly — it is mid-stride, and momentum carries it forward. It cannot turn in place without shifting its weight between its feet in a carefully sequenced way. And it cannot follow an arbitrary curve through free space without first verifying that every point along that curve is a safe place to put a foot.
+
+Three structural constraints explain why:
+
+### Constraint 1 — Centre-of-Mass Stability
+
+A wheeled robot's centre of mass stays fixed relative to its chassis. It does not change as the robot moves. A bipedal robot's centre of mass shifts with every step — forward as the swing leg moves ahead, sideways as weight transfers from one foot to the other, upward and downward as the body rises and falls through the gait cycle.
+
+If the projected centre of mass falls outside the **support polygon** — the area defined by the robot's current foot contact points — the robot falls. A planned path that causes this to happen at any step is not merely suboptimal; it is dangerous.
+
+Path planning for a bipedal robot must therefore account for where the robot's weight will be at every moment of its trajectory, not just whether the path avoids obstacles.
+
+### Constraint 2 — Footstep Placement
+
+A wheeled robot occupies a 2D footprint. For planning purposes, it can be treated as a circle or rectangle moving across a floor. Any surface that is obstacle-free and reachable is traversable.
+
+A bipedal robot must place each foot on a surface that can support it: flat, stable, load-bearing, and large enough to accommodate the foot's contact area. Stairs require the planner to identify each step surface. Gravel requires assessment of whether the footing is stable. A wet tile might be traversable or might not be, depending on the surface coefficient. The edge of a threshold requires careful foot placement to avoid a trip.
+
+The planner cannot simply route through a grid. It must select valid **footstep positions** — specific locations where each foot will land — and verify that each position satisfies the surface requirements.
+
+### Constraint 3 — Gait Cycle Timing
+
+A wheeled robot can pause at any point along its path and resume without difficulty. A bipedal robot in mid-stride cannot. The gait cycle has momentum: the swing leg is moving forward, the stance leg is bearing the full body weight, and the transfer of weight between them follows a timing that cannot be arbitrarily interrupted without losing balance.
+
+A planned path that requires the robot to stop suddenly mid-stride, reverse direction before weight transfer completes, or execute a sharp turn before the foot has landed is mechanically unsafe — even if the path is geometrically clean on a map.
+
+:::warning
+A path that is geometrically obstacle-free is not automatically safe for a bipedal robot. A path that requires stopping suddenly on a slope, placing a foot on a narrow edge, or changing direction faster than the gait cycle allows can cause a fall even in the complete absence of obstacles. Safety in bipedal navigation is a stricter condition than in wheeled navigation.
+:::
+
+---
+
+## The Role of Nav2 in the Isaac Stack
+
+Nav2 is the navigation middleware that sits above Isaac ROS cuVSLAM in the Isaac pipeline. It consumes the outputs of Chapter 11 — the 3D map and the real-time position estimate — and produces movement instructions for the robot.
+
+Nav2 performs two primary functions:
+
+**Path planning**: Given the robot's current position (from Isaac ROS VSLAM) and a desired destination, Nav2 computes a route through the map that avoids obstacles and satisfies the bipedal constraints described above. For a humanoid robot, this route is not a smooth continuous curve — it is a sequence of discrete **footstep positions**: a list specifying where each foot should land, in what order, to carry the robot from its current location to its goal.
+
+**Behaviour control**: Nav2 monitors the robot's progress along the planned path. If an unexpected obstacle appears — a person walks into the corridor, an object falls — Nav2 detects that the current plan is no longer valid and triggers replanning. It continuously compares the robot's actual position against the expected position and issues corrections when the robot drifts from the plan.
+
+It is important to understand what Nav2 does *not* do. Nav2 decides *where* the robot's next foot should land. It does not decide *how* the robot physically executes that step. The low-level motion controller — a separate system that manages joint torques, balance correction, and the mechanics of each stride — receives the footstep target from Nav2 and handles the physical execution. This boundary is intentional: path planning and motion control are separated so that each can be developed, tested, and improved independently.
+
+:::tip
+Think of Nav2 as the navigator in a car — it gives turn-by-turn directions. The driver (the robot's balance and motion controller) decides how fast to turn the wheel, when to brake gently, and how to handle the actual road conditions. Nav2 tells the robot *where* to step next; the robot's body handles the mechanics of stepping there safely.
+:::
+
+---
+
+## Planning Around Stability Constraints
+
+The centre-of-mass stability constraint changes the nature of path planning in a fundamental way.
+
+For a wheeled robot, the planner asks a single question for each candidate path: does this path avoid obstacles? If yes, the path is valid.
+
+For a bipedal robot, the planner asks an additional question at every candidate footstep: will the robot's projected centre of mass remain within its support polygon throughout this step transition? The support polygon changes with every step — when both feet are on the ground, it is the area between and around both feet; when one foot is in the air during a swing phase, it reduces to the contact area of the single stance foot.
+
+A candidate footstep that would cause the centre of mass to project outside the support polygon — even momentarily — is rejected, even if the footstep position itself is obstacle-free and geometrically reachable.
+
+This is why bipedal navigation is inherently more conservative than wheeled navigation. The stability constraint eliminates a large fraction of the candidate paths that a wheeled planner would happily use. The robot takes longer routes, avoids certain step configurations, and sometimes pauses before a difficult section to replan — not because of obstacles, but because the faster or more direct route fails the stability test.
+
+---
+
+## Footstep-Aware Path Planning
+
+Footstep planning is the process of selecting a discrete sequence of foot placements that carry the robot from its current position to its goal while satisfying all three bipedal constraints at every step.
+
+The planner works by generating candidate footstep positions and evaluating each one against a set of criteria:
+
+- **Surface validity**: Is the landing surface flat, stable, and large enough to accommodate the foot?
+- **Reachability**: Is the footstep position within the robot's stepping range from the previous footstep, given its current stance and the gait cycle timing?
+- **Stability**: Will placing the foot here keep the centre of mass within the support polygon during the weight transfer?
+- **Clearance**: Is there sufficient space above and around the footstep position for the leg to swing through without collision?
+
+Candidate footsteps that fail any of these criteria are rejected. The planner selects a sequence from the candidates that pass all criteria, optimising for a combination of path length, energy efficiency, and risk margin.
+
+The map produced by Isaac ROS cuVSLAM (Chapter 11) is the source of the surface classification data the footstep planner depends on. When cuVSLAM builds the 3D map, it characterises surfaces — their orientation, estimated stability, and navigability. The footstep planner reads this characterisation to determine which candidate landing positions are viable. This is the direct conceptual link between the mapping chapter and this one: the map is not just used for obstacle avoidance; it is used for footstep selection.
+
+---
+
+## The Full Pipeline: From Camera Input to Footstep Decision
+
+With all four chapters complete, the full pipeline from raw sensor input to movement decision can be traced as a single coherent sequence.
+
+**1. Cameras capture the environment.** The robot's stereo cameras produce a continuous stream of image pairs — one from each eye — at each moment as the robot moves.
+
+**2. Isaac ROS cuVSLAM processes the stream.** The VSLAM system identifies visual landmarks, matches them across frames, estimates the robot's motion, updates its position estimate, and builds the 3D map of surrounding surfaces. This runs continuously, at camera frame rates, in real time on the robot's hardware.
+
+**3. The map and position are passed to Nav2.** Nav2 receives the current 3D map — with surface classifications, obstacle locations, and navigable zones — and the robot's current position within that map.
+
+**4. Nav2 plans a footstep sequence.** Given the destination, Nav2's path planner evaluates candidate footstep positions, applies the stability and placement constraints, and produces an ordered list of footstep targets: right foot here, left foot there, right foot next, continuing to the goal.
+
+**5. Footstep targets are sent to the motion controller.** Each footstep target is passed to the low-level motion controller, which executes the physical step — managing joint angles, balance corrections, and weight transfer — while the balance system keeps the centre of mass within the support polygon.
+
+**6. The cycle repeats.** As the robot moves, the camera stream continues, the VSLAM map updates, and Nav2 continuously monitors the path. If an obstacle appears or a planned footstep becomes invalid, Nav2 replans and issues a new footstep sequence.
+
+:::note
+Isaac Sim (Chapter 10) is not part of this real-time pipeline. It was used *before deployment* — in the lab, during the development phase — to train the perception models that Isaac ROS now runs. Synthetic data generation happens once; real-time perception and navigation happen continuously on the deployed robot. The training phase and the deployment phase are cleanly separated.
+:::
+
+---
+
+## Summary
+
+Bipedal path planning is structurally different from wheeled navigation — it must satisfy three constraints absent in wheeled systems: centre-of-mass stability throughout each step transition, valid footstep placement on load-bearing surfaces, and gait cycle continuity that prevents unsafe mid-stride interruptions.
+
+Nav2 serves as the navigation middleware that consumes the 3D map and position data from Isaac ROS and produces a sequence of footstep decisions that guide the humanoid to its goal — while delegating the physical execution of each step to a separate motion controller.
+
+The planning process is inherently conservative. Many geometrically valid paths are rejected because they violate stability or placement constraints, which is why bipedal navigation prioritises safety over speed in a way that wheeled navigation does not need to.
+
+With Chapter 12 complete, the full Module 3 pipeline is clear: Isaac Sim trains the eyes in simulation, Isaac ROS runs the eyes in real time and builds the spatial map, and Nav2 reads that map to plan where the feet go next.
+
+<RagChatbot context="module-3" />

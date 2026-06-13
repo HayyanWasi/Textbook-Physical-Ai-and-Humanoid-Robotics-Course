@@ -1,0 +1,128 @@
+---
+title: "Chapter 11 — Visual SLAM: How a Robot Builds Its Map"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 11 — Visual SLAM: How a Robot Builds Its Map
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+- Define SLAM (Simultaneous Localisation and Mapping) in plain language without any mathematical notation
+- Explain why a robot cannot rely on GPS for indoor navigation and what it uses instead
+- Describe the concept of a visual landmark and how the robot uses it to track its own position
+- Explain loop closure using a real-world analogy — what it solves and why it is necessary
+- Describe how Isaac ROS cuVSLAM fits into the perception pipeline at a conceptual level, without referencing its internal algorithms
+
+---
+
+## What SLAM Means and Why Robots Need It
+
+Imagine walking into a building you have never visited before. There are no signs, no map on the wall, and your phone has no signal. You explore — moving through corridors, noting landmarks, building a mental sketch of the layout as you go. By the time you reach your destination, you have simultaneously created a rough map *and* tracked your own position within it.
+
+This is exactly what a robot must do when it enters an unknown environment. The process has a name: **Simultaneous Localisation and Mapping**, or **SLAM**.
+
+The challenge is circular, and that is what makes it interesting. To know where you are, you need a map. To build an accurate map, you need to know where you are. SLAM solves both at the same time — using each to inform the other in a continuous, self-correcting loop.
+
+For robots operating outdoors with clear sky visibility, GPS provides a reliable external position reference that breaks this circularity. GPS tells the robot where it is, so the robot only needs to build the map without simultaneously solving its own location.
+
+Indoors, GPS signals are too weak and too imprecise for the centimetre-level accuracy a humanoid robot requires. A GPS fix that is accurate to within a few metres is sufficient for a car on a road. It is not sufficient for a robot that needs to avoid a chair leg or place a foot on a precise surface. SLAM replaces GPS by using the robot's own cameras as its position reference — extracting location information from what the robot sees, not from a satellite signal.
+
+:::note
+SLAM is not unique to humanoid robotics. Your smartphone's augmented reality features, the Mars Perseverance rover's navigation system, and autonomous vehicle lane-keeping systems all use variants of the same core idea — building a model of the environment while simultaneously tracking position within it.
+:::
+
+---
+
+## Visual Landmarks as the Robot's Reference Points
+
+The key to visual SLAM is the concept of a **landmark**: a distinctive, recognisable feature in the camera image that the robot can identify reliably when it sees it again from a different angle.
+
+Landmarks are not chosen by a human in advance. The robot detects them automatically from the camera stream. Good landmarks tend to be points where two surfaces meet at an angle (a door frame corner), edges where texture changes sharply (the boundary between a tile and a wooden floor), or distinctive patterns in surface texture (a particular wall poster, a ventilation grille with a distinctive shape).
+
+The robot does not understand *what* a landmark represents. It does not know that a particular set of visual features belongs to a fire extinguisher bracket. It only knows that this cluster of features appeared in a previous frame at a particular position, and that it has now appeared again in the current frame at a slightly different position. From that difference — and the geometry of the camera — it can estimate how much the robot has moved between the two frames.
+
+Think of it this way: imagine photographing landmarks as you walk through a city you have never visited. After photographing a distinctive fountain, you continue walking. A few minutes later, you see the same fountain from a different angle. By comparing your current view of it with your earlier photograph, you can estimate how far you have walked and in which direction — even without a map, even without GPS.
+
+The robot does the same thing, continuously, with dozens of landmarks simultaneously, using the built-in geometry of its stereo camera pair to measure distances.
+
+:::tip
+Not all surfaces make useful landmarks. A plain white wall gives the robot nothing distinctive to recognise — every patch looks the same. Rich surfaces — textured wallpaper, visible edges, light switches, picture frames — provide many distinctive features. This is why VSLAM systems sometimes struggle in minimally decorated spaces like server rooms or clean-rooms, where visual texture is deliberately reduced.
+:::
+
+---
+
+## Building the Map Step by Step
+
+SLAM is not a single computation. It is a continuous process that repeats with every new camera frame. Here is the conceptual sequence:
+
+**1. Capture a frame.** The robot's stereo cameras capture two simultaneous images — slightly offset horizontally, matching the spacing of human eyes. Each image is a snapshot of the current view.
+
+**2. Find distinctive features.** The system scans the images for visual features: corners, edges, textured regions that stand out from their surroundings. A few hundred to a few thousand features are identified per frame.
+
+**3. Match features to the previous frame.** Each feature in the current frame is compared to features from the previous frame. Features that appear in both frames — at slightly different positions because the robot has moved — are matched as pairs.
+
+**4. Estimate movement.** The difference in position of matched features between the two frames, combined with the depth information from the stereo camera pair, allows the system to estimate how much the robot has moved: how far forward, how much to the side, how much it has rotated. This estimate is called **visual odometry** — measuring movement from visual change.
+
+**5. Update the position estimate.** The movement estimate is added to the robot's running total of how far it has travelled from its starting position. The robot's estimated position in the map is updated.
+
+**6. Add new landmarks to the map.** Features that have never been seen before are added to the growing map as new landmarks, tagged with their estimated 3D position in space.
+
+**7. Correct existing landmarks.** Features that have been seen before are compared to their stored map positions. Small discrepancies are used to correct accumulated errors in the position estimate.
+
+:::tip
+Think of this as building a sketch map while walking through a dark house with a torch. Each step extends the sketch, but small wobbles in your stride introduce small inaccuracies. Each time you re-illuminate a section you sketched earlier, you compare the new view to your sketch and make corrections. The robot does this at camera frame rates — typically 30 times per second.
+:::
+
+---
+
+## Loop Closure — When the Robot Recognises Where It Has Been
+
+There is an unavoidable problem with the step-by-step map-building process above: errors accumulate. Each movement estimate is slightly imperfect. The error in step 4 is small — perhaps a centimetre or a fraction of a degree. But across hundreds of steps, those small errors add up. After exploring a large space, the robot's estimate of its own position may have drifted several metres from its true location, and the map may be warped accordingly.
+
+**Loop closure** is the mechanism that corrects this drift.
+
+When the robot re-enters a part of the environment it explored earlier, it recognises familiar landmarks in the current camera frame — landmarks it photographed and stored in the map during its initial pass. It can now compare two things: where it *estimates* it currently is (the accumulated, slightly drifted position) and where the map says it *should* be (at the position from which those landmarks were originally observed).
+
+If there is a discrepancy — the robot estimates it is standing 0.3 metres to the left of where the landmarks say it should be — the system corrects the recent trajectory. It does not just correct the current position; it adjusts the entire path since the last reliable fix, distributing the correction backwards through the recent history so that the map remains consistent and continuous.
+
+Here is the analogy that makes this concrete: imagine sketching your path as you walk around an unfamiliar block. You turn left, walk, turn left again, walk, turn left again, and eventually arrive back at the building you started from. You photograph it. But your sketch shows the building 20 metres from where you started — when physically, you are standing right in front of it. You correct your sketch: the block was slightly smaller than you drew, and you spread that correction back through the entire sketch to make it consistent.
+
+The robot does exactly this, automatically, every time it returns to a previously visited area. Over time, loop closures accumulate, the map converges to an accurate representation of the space, and position drift is kept well within acceptable bounds.
+
+---
+
+## How Isaac ROS cuVSLAM Fits the Bigger Picture
+
+Isaac ROS **cuVSLAM** is NVIDIA's implementation of visual SLAM, packaged as part of the Isaac ROS perception suite. Its role in the pipeline is simple to describe at a conceptual level: cameras in, map and position out.
+
+It runs continuously on the robot during deployment — not before deployment, not in Isaac Sim, but on the physical hardware as the robot moves. While Isaac Sim (Chapter 10) was used to train the perception models during development, cuVSLAM runs those models and the broader SLAM pipeline in real time, processing camera frames as fast as the hardware allows.
+
+Its output — a continuously updated 3D map and a real-time position estimate — is consumed by Nav2 (Chapter 12), which uses both to plan where the robot should place its next footstep.
+
+The two outputs serve distinct purposes:
+
+- **The map** tells Nav2 what the environment looks like — where surfaces are, where obstacles are, which areas are navigable.
+- **The position estimate** tells Nav2 where the robot currently is within that map, so the planned path starts from the correct location.
+
+Without both, Nav2 cannot plan effectively. A perfect map with no position fix is like a paper map with no "you are here" marker. A perfect position fix with no map is like knowing exactly where you stand but having no information about what surrounds you.
+
+:::note
+cuVSLAM is named for its use of hardware acceleration internally — the "cu" prefix signals that it runs on the GPU to achieve the processing speeds required for real-time operation. You do not need to understand how that acceleration works to understand what cuVSLAM does. Its role in the pipeline is straightforward: cameras in, map and position out. Chapter 12 explains what Nav2 does with those outputs.
+:::
+
+---
+
+## Summary
+
+SLAM — Simultaneous Localisation and Mapping — solves the circular problem of building a map while simultaneously locating yourself within it. This is the indoor equivalent of GPS-based navigation, and it is essential for any robot operating in environments where external positioning signals are unavailable or insufficiently precise.
+
+Visual SLAM uses distinctive features in camera images as landmarks, matching them across frames to estimate motion and incrementally build a 3D map of the surrounding space. The process is continuous, running at camera frame rates, and every new frame both extends the map and refines the position estimate.
+
+Loop closure prevents accumulated drift from making the map unusable. Whenever the robot recognises a previously visited area, it compares its current estimated position to its map-recorded position at that point and corrects the discrepancy — keeping the map consistent even after long exploration sessions.
+
+Isaac ROS cuVSLAM runs this pipeline in real time on the deployed robot, producing the 3D map and position estimate that Nav2 consumes in Chapter 12 to plan how the humanoid will move through the world.
+
+<RagChatbot context="module-3" />
