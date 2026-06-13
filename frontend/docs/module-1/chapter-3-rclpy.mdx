@@ -1,0 +1,136 @@
+---
+title: "Chapter 3 — Connecting the AI Brain with rclpy"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 3 — Connecting the AI Brain with rclpy
+
+## Learning Objectives
+
+After completing this chapter, you will be able to:
+
+- Explain what rclpy is and why Python is the preferred language for bridging AI logic to ROS 2
+- Identify the three structural parts of a ROS 2 Node written in Python
+- Describe the publisher pattern in rclpy and explain how a Node sends data to the graph
+- Describe the subscriber pattern in rclpy and explain how a callback function processes incoming data
+
+## The Role of rclpy in ROS 2
+
+ROS 2 is implemented at its core in C++. The internal libraries that manage Node registration, message serialisation, and DDS transport are all C++ components. However, most AI and machine learning work — inference models, perception pipelines, behaviour logic — is written in Python.
+
+**rclpy** is the official Python client library for ROS 2. It wraps the underlying C++ ROS 2 core and exposes a clean, Pythonic API for creating Nodes, Publishers, Subscribers, Timers, and Service clients. Every concept from Chapter 2 — Nodes, Topics, Services — has a direct Python equivalent in rclpy.
+
+:::note
+rclpy is the bridge between your AI model's Python logic and the ROS 2 communication graph. It translates Python function calls into ROS 2 messages and graph operations. You write Python; rclpy handles the graph.
+:::
+
+The division of responsibility is clear: rclpy handles **graph membership** (joining the network, finding topics, managing message types) so that your code can focus purely on **logic** (what to do with the data). This separation is what makes ROS 2 suitable for AI-powered robots: your PyTorch model, your OpenAI integration, your custom decision tree — all of these can live in Python functions, and rclpy connects their outputs to the robot's actuators.
+
+## Anatomy of a ROS 2 Node in Python
+
+Every rclpy Node has three structural parts: initialisation, declaration of graph connections, and a spin loop that keeps the Node alive. Understanding these three parts is sufficient to read and reason about any ROS 2 Python Node, regardless of its specific purpose.
+
+```python
+import rclpy
+from std_msgs.msg import String
+
+# 1. INITIALIZATION — register this process with the ROS 2 graph
+rclpy.init()
+node = rclpy.create_node('ai_decision_node')
+
+# 2. PUBLISHER — declare an outbound channel on the graph
+#    Topic name: '/command_topic'
+#    Message type: String
+#    Queue size: 10 (how many messages to buffer if the subscriber is slow)
+publisher = node.create_publisher(String, '/command_topic', 10)
+
+# 3. SPIN — keep the node alive and processing incoming messages
+#    Without spin(), the node would exit immediately after startup
+rclpy.spin(node)
+```
+
+**Part 1 — Initialisation**: `rclpy.init()` connects this Python process to the ROS 2 runtime. `rclpy.create_node('ai_decision_node')` registers the Node with the computation graph under the name `ai_decision_node`. From this moment, the Node is visible to all other Nodes in the system.
+
+**Part 2 — Graph connections**: `node.create_publisher(...)` declares that this Node will publish messages of type `String` to the Topic named `/command_topic`. Nothing is sent yet — this just registers the outbound channel. Subscribers and Services are declared in the same step.
+
+**Part 3 — Spin**: `rclpy.spin(node)` starts the event loop. This call blocks indefinitely, keeping the Node alive and processing any incoming events — arriving messages, timer callbacks, Service requests. A Node that doesn't spin exits immediately after startup and never processes anything.
+
+## The Publisher Pattern in rclpy
+
+A publisher Node produces data and sends it to the graph. The pattern has two steps: create the publisher at startup, then call `publish()` whenever new data is ready.
+
+```python
+from std_msgs.msg import String
+
+# Declare the publisher once, at node startup
+publisher = node.create_publisher(String, '/detections', 10)
+
+# Call publish() whenever the AI model produces a new detection
+def on_new_detection(detection_label: str) -> None:
+    msg = String()
+    msg.data = detection_label          # Pack the result into a ROS 2 message
+    publisher.publish(msg)              # Send it to the /detections topic
+```
+
+The publisher is stateless — it does not store a history of what it has sent. Once `publish()` is called, rclpy serialises the message and hands it to DDS for delivery. The publisher then forgets the message. Any Node subscribed to `/detections` will receive it.
+
+:::tip
+Think of publishing as placing a message on a bulletin board. Any subscriber watching that board will receive it automatically. You post; they read. You never need to know who is reading or when.
+:::
+
+This pattern is what connects an AI inference result to the rest of the robot. A vision model detects a pedestrian → `on_new_detection('pedestrian')` is called → the message is published to `/detections` → the path planner, the alert system, and the logger all receive it simultaneously from the Topic, with no coordination between them.
+
+## The Subscriber Pattern in rclpy
+
+A subscriber Node receives data from the graph and processes it through a **callback function**. The callback is a regular Python function that rclpy calls automatically every time a new message arrives on the subscribed Topic.
+
+```python
+from std_msgs.msg import String
+
+def detection_callback(msg: String) -> None:
+    # This function is called automatically by rclpy
+    # every time a new message arrives on /detections
+
+    detection = msg.data               # Unpack the message
+    # --- your logic goes here ---
+    # e.g., log it, pass to planner, trigger an action
+    node.get_logger().info(f'Received detection: {detection}')
+
+# Register the subscription: Topic name, message type, callback function
+subscription = node.create_subscription(
+    String,              # Message type — must match the publisher's type
+    '/detections',       # Topic name — must match the publisher's topic
+    detection_callback,  # The function rclpy will call on each message
+    10                   # Queue size
+)
+```
+
+:::note
+The callback is triggered automatically by rclpy whenever a new message arrives on the topic. You write the logic inside the callback; rclpy handles the delivery, the queue, and the timing. You never call `detection_callback()` directly.
+:::
+
+The callback function receives one argument: the message object. Its fields contain the actual data. After the callback returns, rclpy is free to call it again when the next message arrives. If messages arrive faster than the callback can process them, the queue (size 10 in the example) buffers the backlog.
+
+## Connecting an AI Decision Engine to ROS 2
+
+The architectural pattern for integrating a Python-based AI model with a physical robot follows a clean pipeline:
+
+1. An AI model runs inference on sensor data (camera frames, LiDAR points, audio)
+2. The inference result is published to a ROS 2 Topic by a publisher Node
+3. A downstream Node subscribes to that Topic and translates the result into a robot action (move, stop, speak, grasp)
+4. The action command is published to a second Topic consumed by the motor controller or actuator driver Node
+
+This pipeline is what makes physical AI possible: the AI model does not need to know anything about the robot's hardware. It publishes a string, a float, or a structured message. The robot's hardware layer subscribes and acts. The graph is the contract between intelligence and mechanics.
+
+:::warning
+Never import OpenAI, TensorFlow, or PyTorch directly into a ROS 2 Node's callback function. Heavy model inference inside a callback blocks the rclpy spin loop, preventing the Node from processing any other messages until the inference completes. Keep inference in a separate process or thread, and communicate results back to the ROS 2 graph via a Topic publisher. The callback should be fast — receive, unpack, and hand off.
+:::
+
+The correct pattern is to run inference in a background thread or a separate Node, then call `publisher.publish(result)` when the result is ready. The callback receives the next sensor input while inference runs in parallel.
+
+## Summary
+
+rclpy is the Python client library that bridges AI logic written in Python to the ROS 2 computation graph, translating Python function calls into graph-native messages without requiring any C++ knowledge. Every rclpy Node has three structural parts: initialisation (joining the graph), declaration of publishers and subscribers (registering graph connections), and a spin call (starting the event loop that keeps the Node alive and responsive). The publisher pattern decouples AI inference results from their consumers — a model publishes to a Topic, and any number of downstream Nodes receive the result without coordination. The subscriber pattern uses a callback function that rclpy triggers automatically on each arriving message, keeping the application logic clean and separated from the transport mechanics.
+
+<RagChatbot context="module-1" />

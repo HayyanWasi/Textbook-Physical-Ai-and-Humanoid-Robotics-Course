@@ -1,0 +1,95 @@
+---
+title: "Chapter 7 — Unity and High-Fidelity Rendering"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 7 — Unity and High-Fidelity Rendering
+
+## Learning Objectives
+
+After completing this chapter, you will be able to:
+
+- Explain why Gazebo's default rendering is insufficient for robotics tasks that depend on visual realism, such as computer vision model training
+- Describe Unity's role as the visual and interactive rendering layer in a robotics pipeline, distinct from Gazebo's role as the physics simulation layer
+- Explain how Unity connects to the ROS 2 graph via the ROS–Unity bridge and what data flows between them
+- Identify at least two robotics use cases that require Unity's photorealistic capabilities and that Gazebo alone cannot support
+
+## Why Gazebo Alone Is Insufficient for High-Fidelity Rendering
+
+Gazebo's physics accuracy is its primary value. Its visual output is not. The default Gazebo renderer produces flat, textureless representations of objects — adequate for confirming that a robot arm has reached its target position, but profoundly inadequate for any task where the quality of the visual image matters.
+
+Consider the problem of training a pedestrian detection model. A computer vision model needs to learn what a pedestrian looks like across thousands of variations: different lighting conditions (direct sun, overcast sky, artificial indoor lighting), different viewing angles, different clothing textures, different distances, different levels of motion blur, and different background environments. A model trained exclusively on Gazebo's flat, textureless output will perform well in Gazebo and fail immediately on real camera footage — because the visual domain of Gazebo and the visual domain of the real world are radically different.
+
+This gap is not a shortcoming that Gazebo's developers overlooked. It is a deliberate architectural choice. Gazebo was designed to simulate physics, not to render photorealistic scenes. Adding a photorealistic renderer to a physics engine would make both worse: the physics computation would compete with the rendering computation for CPU and GPU resources, and the renderer would need to make compromises to stay synchronised with the physics timestep.
+
+:::note
+Gazebo's goal is physics accuracy, not visual realism. Its renderer is a debugging tool — it lets you see whether the robot is in the right position — not a training data generator. For robotics tasks that depend on what the robot's camera sees, you need a separate photorealistic rendering environment. That environment is Unity.
+:::
+
+## Unity as the Visual and Interactive Layer
+
+Unity is a real-time 3D rendering engine. It was originally designed for game development, but its rendering quality, flexible asset pipeline, and active developer community have made it the dominant platform for photorealistic robotics simulation environments.
+
+The architectural principle of this chapter can be stated in one sentence: **Gazebo simulates physics; Unity renders the world.**
+
+In a combined Gazebo-and-Unity pipeline:
+
+- **Gazebo** receives motor commands from the ROS 2 graph, applies them to the robot model, computes the resulting physics (joint movement, contact forces, sensor responses), and publishes the updated robot state and simulated sensor data back to the ROS 2 graph.
+- **Unity** receives the robot's state from the ROS 2 graph — joint positions, velocities, and the positions of objects in the scene — and renders a photorealistic visual representation of that state. It shows what the scene would look like if the robot and its environment were physically real, with correct lighting, textures, shadows, and materials.
+
+The robot's brain — the ROS 2 computation graph — sees both tools as sources of data. The physics ground truth comes from Gazebo. The visual ground truth comes from Unity. Neither tool knows what the other is doing; they both communicate through the same ROS 2 topic interface.
+
+:::warning
+Unity does not run the physics simulation. Gazebo does. If you use Unity without Gazebo in a robotics context, your robot's visual appearance is photorealistic but its movement is physically wrong — because Unity's game engine physics is not calibrated for robotics precision. Always pair Unity with Gazebo: Gazebo for physics, Unity for rendering. The roles are not interchangeable.
+:::
+
+## How Unity Connects to the ROS 2 Graph
+
+The connection between Unity and ROS 2 is provided by the **Unity Robotics Hub** — an open-source package from Unity Technologies that includes a component called the ROS–TCP Connector. This bridge enables bidirectional message exchange between a Unity application and a ROS 2 system over a standard TCP network connection.
+
+The data flow works as follows:
+
+1. Gazebo computes the robot's new joint positions, velocities, and sensor readings at each physics timestep and publishes them to ROS 2 topics — `/joint_states`, `/lidar/scan`, `/camera/image_raw`, and others introduced in Module 1 and Chapter 8 of this module.
+
+2. A ROS 2 node called the **TCP Endpoint** runs alongside Gazebo on the same machine. It accepts TCP connections from Unity and forwards selected ROS 2 messages to the Unity application running locally or on another machine in the same network.
+
+3. Unity receives the joint state message and updates its internal model of the robot — moving the rendered arm, leg, or torso to match the position computed by Gazebo. The rendered scene updates at each frame to reflect the current physics state.
+
+4. Optionally, Unity can publish events back to ROS 2 — for example, publishing the position of a virtual human avatar so that the robot's path planning system can react to it as an obstacle.
+
+:::tip
+The ROS 2 graph is the integration point between Gazebo and Unity. Both tools are just nodes in the same communication network. Gazebo produces physics data; Unity consumes it for rendering and optionally publishes interactive data back. You do not need to understand the TCP protocol or Unity's networking internals — ROS 2 is the shared language that connects them, using the same topic and message type system you studied in Module 1.
+:::
+
+The Unity application does not need to be on the same physical machine as Gazebo and ROS 2. In larger robotics setups, Gazebo runs on a physics-optimised server, and Unity runs on a workstation with a dedicated GPU for rendering — both connected over a local network. The bridge handles the communication.
+
+## Use Cases Where Unity Is Essential
+
+Four categories of robotics work specifically require Unity's photorealistic capabilities:
+
+**Training computer vision models with synthetic data.** A robot's perception system — its object detector, its depth estimator, its semantic segmentation model — must learn from thousands of diverse images. Unity can render a warehouse, a hospital corridor, or a factory floor with photorealistic materials and lighting, generating synthetic training images that are visually indistinguishable from real camera footage. The robot never enters the real environment during the data collection phase. Unity generates the dataset; the model trains on it; the real robot benefits from a perception system that has seen millions of scenes.
+
+**Human-robot interaction testing with avatar simulation.** Testing how a robot navigates around humans, hands objects to humans, or responds to human gestures requires humans in the simulation. Gazebo has no human avatar system. Unity provides photorealistic humanoid avatars with natural movement patterns (walking, gesturing, stopping, changing direction). A service robot that must navigate a hospital corridor with patients, nurses, and visitors can be tested with hundreds of simulated human avatars in Unity long before it enters a real hospital.
+
+**Accessibility and safety evaluation.** Designing a robot to operate safely around people with varying mobility — wheelchair users, elderly individuals, people with visual impairments — requires simulating their presence and behaviour. Unity's avatar and environment systems allow engineers to create scenarios that would be impractical or unsafe to test with real participants.
+
+**Stakeholder communication and demonstration.** A photorealistic Unity simulation of a robot completing a task in a recognisable environment — a home kitchen, a warehouse, a construction site — communicates intent and capability to non-technical stakeholders more effectively than a Gazebo simulation with flat, grey geometry. The physics is still provided by Gazebo; the presentation layer is Unity.
+
+## Gazebo and Unity as Complementary Tools in One Pipeline
+
+Gazebo and Unity are not alternatives to each other. They are not competing products where a robotics team must choose one and discard the other. They solve different problems, and in a complete robotics development pipeline, both are present simultaneously.
+
+The mental model: **Gazebo is your physics lab; Unity is your photography studio**. In a physics lab, you verify that the robot's joint controller produces the correct torque, that the walking algorithm maintains balance over rough terrain, that the gripper applies the right force to pick up an object. In the photography studio, you produce the visual evidence of what those behaviours look like — training images for computer vision, demonstration footage for stakeholders, photorealistic environments for HRI testing.
+
+Choosing only Gazebo gives you physics without visual fidelity. Choosing only Unity gives you visual fidelity without grounded physics. Choosing both, connected through the ROS 2 graph, gives you a complete digital twin: a simulation where the physics is trustworthy and the visual output is realistic.
+
+:::note
+A robotics engineer's mental model for this module: Gazebo is your physics lab. Unity is your photography studio. The robot's brain — the ROS 2 graph — connects them. All three are necessary for a complete physical AI development environment.
+:::
+
+## Summary
+
+Gazebo's physics accuracy makes it the correct tool for robot algorithm validation, but its intentionally simple renderer cannot produce the visual realism required for computer vision training, human-robot interaction testing, or stakeholder demonstrations. Unity fills this role as the photorealistic rendering layer, receiving robot state data from the ROS 2 graph via the ROS–Unity bridge and rendering the scene with realistic lighting, textures, and materials. The two tools are connected through the same ROS 2 topic interface introduced in Module 1 — Gazebo publishes physics state, Unity consumes it for rendering — making ROS 2 the integration bus that holds the pipeline together. Gazebo and Unity are not competing simulators but complementary tools serving distinct purposes: Gazebo simulates physics, Unity renders the world, and neither can substitute for the other in a complete robotics development environment.
+
+<RagChatbot context="module-2" />

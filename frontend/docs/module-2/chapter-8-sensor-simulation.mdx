@@ -1,0 +1,130 @@
+---
+title: "Chapter 8 — Simulating Sensors and the ROS 2 Bridge"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 8 — Simulating Sensors and the ROS 2 Bridge
+
+## Learning Objectives
+
+After completing this chapter, you will be able to:
+
+- Explain how a simulated sensor's output is structurally identical to a real sensor's output on the ROS 2 graph, and why this matters for algorithm testing
+- Identify the ROS 2 topic name and message type for a simulated LiDAR, depth camera, and IMU
+- Explain the "sensor-agnostic perception pipeline" principle and why it enables testing entire software stacks in Gazebo without modification
+- Connect the simulated sensor topic names in this chapter to the example topics introduced in Module 1, Chapter 2
+
+## How Simulated Sensors Mirror Real Hardware
+
+A film stunt double performs the dangerous scene in place of the lead actor. They are physically matched, trained to replicate every movement, and positioned so precisely that the film's audience cannot distinguish the double from the actor. After the edit, the scene belongs to the story — it does not matter who performed it.
+
+Simulated sensors are the stunt doubles for real hardware sensors. A Gazebo LiDAR plugin sweeps a virtual laser beam across the simulated environment geometry and records the distance to every surface it hits. The output is packaged as a standard ROS 2 message — the same message type, with the same field layout, published on the same topic name that a physical LiDAR would use. The perception Node subscribed to that topic receives the message and processes it identically regardless of source. After the callback runs, the algorithm does not know — and does not care — whether the scan came from a Kinect, a Velodyne, or a Gazebo plugin.
+
+:::note
+The Gazebo sensor plugin is the only component in the entire system that is aware the data is simulated. Every other Node in the ROS 2 graph — the object detector, the path planner, the logger, the motor controller — receives real-looking data and responds as it would in the physical world. This is precisely why simulation is useful for testing perception algorithms: the algorithms run completely unmodified in simulation and on real hardware.
+:::
+
+This property — that the interface between sensor and algorithm is mediated entirely by the ROS 2 topic and message type — is not an accident. It is the direct consequence of the architectural principle established in Module 1: Nodes communicate through the graph, not through direct coupling. A Node that subscribes to `/lidar/scan` of type `sensor_msgs/LaserScan` is decoupled from the device that publishes on that topic. Gazebo is simply one more publisher.
+
+## LiDAR Simulation and the ROS 2 Topic Interface
+
+A **LiDAR** (Light Detection and Ranging) sensor emits laser pulses in a rotating pattern and measures the time each pulse takes to return from the nearest surface. From these time measurements, it computes distances. The output is an array of distance values, one per beam angle, covering a full rotation (or arc) of the environment.
+
+In Module 1, Chapter 2, `/lidar/scan` was introduced as an example topic name in the ROS 2 computation graph. Chapter 2 established that the `camera_driver` Node publishes images and the `object_detector` Node subscribes to them — the `/lidar/scan` topic was named in the same context as an example of a continuous data stream. Chapter 8 explains what that topic actually carries.
+
+The Gazebo LiDAR plugin publishes to the ROS 2 graph as:
+- **Topic**: `/scan` or `/lidar/scan` (configurable; `/lidar/scan` matches Module 1's convention)
+- **Message type**: `sensor_msgs/LaserScan`
+
+The `LaserScan` message contains:
+- `angle_min` and `angle_max`: the angular range of the sweep in radians
+- `angle_increment`: the angular step between consecutive beams
+- `ranges[]`: an array of distance values in metres, one per beam angle
+- `range_min` and `range_max`: the valid range of the sensor (distances outside this range are reported as infinity or zero)
+
+No knowledge of the physical optics, the laser frequency, or the timing electronics is needed to work with this message. The algorithm receives an array of distances at known angles. It does not matter whether those distances were measured by a physical laser pulse or computed by a Gazebo ray-casting plugin.
+
+:::tip
+Swapping a simulated LiDAR for a real one requires changing only the driver node — the component that publishes data to `/lidar/scan`. Every downstream Node — the obstacle detector, the mapper, the path planner — continues running without any modification. This is the power of the ROS 2 topic abstraction: the interface is the contract, not the hardware.
+:::
+
+## Depth Camera Simulation and the ROS 2 Topic Interface
+
+A **depth camera** combines a standard RGB camera with per-pixel distance measurement. It produces two output streams simultaneously: a colour image showing what the camera sees, and a depth image where each pixel's value encodes the distance from the camera to the nearest surface at that viewing angle.
+
+The RGB camera stream from Module 1, Chapter 2 — topic `/camera/image_raw` — is one of the two outputs. Chapter 2 used it as an example of a continuous data stream consumed by the `object_detector` Node. The depth camera adds a second output that was not covered in Module 1.
+
+A simulated depth camera in Gazebo publishes on two ROS 2 topics:
+
+- **RGB image**: topic `/camera/image_raw`, message type `sensor_msgs/Image`
+  - Each pixel contains red, green, and blue intensity values
+  - The same topic name and type used in Module 1's example
+  - Consumed by object detection, facial recognition, and colour-based classification Nodes
+
+- **Depth image**: topic `/camera/depth/image_raw`, message type `sensor_msgs/Image`
+  - Each pixel contains a floating-point distance value in metres
+  - Consumed by 3D mapping, obstacle avoidance, and grasp planning Nodes
+  - A pixel value of `0.0` typically indicates a measurement below minimum range; `inf` indicates no surface detected
+
+The same physical (or virtual) sensor produces both streams at the same frame rate, time-synchronised so that the RGB pixel at position (320, 240) in the colour image corresponds exactly to the depth value at position (320, 240) in the depth image.
+
+:::note
+A depth camera produces two ROS 2 topics, not one. The RGB image topic is used by Nodes that reason about appearance — what colour is the object, is there a face, what is written on that label. The depth image topic is used by Nodes that reason about geometry — how far away is the obstacle, what is the 3D shape of the object, where should the gripper contact surface be. Both are present in simulation and on real hardware, and both must be connected to the correct subscriber Nodes in the ROS 2 graph.
+:::
+
+## IMU Simulation and the ROS 2 Topic Interface
+
+An **IMU** (Inertial Measurement Unit) is the robot's sense of balance and self-motion. It measures two physical quantities:
+
+- **Linear acceleration**: how fast the robot is speeding up or slowing down, in three directions (X, Y, Z). The acceleration due to gravity is always present — a stationary robot on Earth measures approximately 9.8 m/s² in the upward Z direction — so an IMU can be used to estimate the robot's tilt relative to gravity.
+- **Angular velocity**: how fast the robot is rotating around each of its three axes (roll, pitch, yaw), measured in radians per second.
+
+In Gazebo, the IMU plugin reads these values directly from the physics engine — the engine knows the simulated robot's exact velocity and acceleration at every timestep — and publishes them as:
+- **Topic**: `/imu/data`
+- **Message type**: `sensor_msgs/Imu`
+
+The `Imu` message contains three fields:
+- `linear_acceleration`: a 3D vector (X, Y, Z in m/s²)
+- `angular_velocity`: a 3D vector (X, Y, Z in rad/s)
+- `orientation`: a quaternion representing the robot link's estimated orientation relative to a reference frame
+
+:::warning
+Do not attempt to derive the quaternion values from the linear acceleration and angular velocity manually. A quaternion is a four-component representation of 3D rotation (fields: x, y, z, w) that avoids the mathematical singularities of Euler angles. In practice, your code reads the four numbers from the message and passes them to the `tf2` library in ROS 2, which handles all quaternion geometry internally. You provide the data; the library computes what you need from it. The mathematics of quaternion multiplication is not required knowledge for using an IMU in a ROS 2 system.
+:::
+
+Like LiDAR and the depth camera, the simulated IMU's output is structurally identical to a real IMU's output. A balance controller Node that subscribes to `/imu/data` runs without modification in Gazebo and on physical hardware.
+
+## The Sensor-Agnostic Perception Pipeline
+
+The four chapters of Module 1 established the foundation: ROS 2 provides a communication graph of Nodes connected by Topics and Services. Nodes are decoupled — a subscriber knows only the topic name and message type, not the publisher. Module 1, Chapter 4 showed how the robot's physical body is described in URDF, providing the structural description that Gazebo requires to simulate it.
+
+This module adds the final layer: a Gazebo simulation with a bridged sensor suite produces data on the same ROS 2 topics, with the same ROS 2 message types, as real physical hardware. The result is a **sensor-agnostic perception pipeline** — a complete software stack that runs identically in simulation and in the real world.
+
+The practical consequence: an engineer working on a path planning algorithm can:
+
+1. Start Gazebo with the robot model and a simulated world
+2. Launch the ROS–Gazebo bridge to publish simulated sensor data on standard topics
+3. Run the complete perception pipeline — LiDAR-based mapping, depth camera obstacle detection, IMU-based balance estimation — without modification
+4. Develop and test the path planning algorithm against real-looking sensor data
+5. Shut down Gazebo, connect the real robot, and start the real sensor drivers
+6. Run the identical perception pipeline — the same launch files, the same Node configurations, the same topic names — on real hardware
+
+No code changes. No recompilation. The only change is the source of the data on each topic.
+
+| Sensor | ROS 2 Topic | Message Type | Module 1 Reference |
+|---|---|---|---|
+| 2D LiDAR | `/scan` or `/lidar/scan` | `sensor_msgs/LaserScan` | Ch. 2 example topic `/lidar/scan` |
+| RGB Camera | `/camera/image_raw` | `sensor_msgs/Image` | Ch. 2 example topic `/camera/image_raw` |
+| Depth Camera (depth) | `/camera/depth/image_raw` | `sensor_msgs/Image` | New in Module 2 |
+| IMU | `/imu/data` | `sensor_msgs/Imu` | New in Module 2 |
+| Odometry | `/odom` | `nav_msgs/Odometry` | Ch. 2 example topic `/odom` |
+| Joint States | `/joint_states` | `sensor_msgs/JointState` | New in Module 2 |
+
+This table is the bridge between Module 1 and Module 2. The topic names in the middle column are the same names that Module 1 introduced as examples of how data flows through the ROS 2 graph. Module 2 now explains what a Gazebo sensor plugin does to produce that data in simulation — and the message type ensures that nothing else in the system needs to change.
+
+## Summary
+
+Simulated sensors in Gazebo are the stunt doubles of real hardware — they produce output in the same ROS 2 message format, on the same topic names, that physical sensors use, so the entire perception pipeline runs unmodified whether the sensor is virtual or physical. A simulated 2D LiDAR publishes `sensor_msgs/LaserScan` on `/lidar/scan`; a simulated depth camera publishes `sensor_msgs/Image` on `/camera/image_raw` (colour) and `/camera/depth/image_raw` (depth); a simulated IMU publishes `sensor_msgs/Imu` on `/imu/data` — all topic names and message types that first appeared as examples in Module 1, Chapter 2. The sensor-agnostic perception pipeline is the practical result of this architecture: a complete software stack developed and validated in Gazebo simulation can be deployed on real hardware with no code changes, because the ROS 2 topic interface is the only contract between sensor and algorithm.
+
+<RagChatbot context="module-2" />

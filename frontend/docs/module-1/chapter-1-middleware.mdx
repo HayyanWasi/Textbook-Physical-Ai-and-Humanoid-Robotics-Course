@@ -1,0 +1,91 @@
+---
+title: "Chapter 1 — The Need for Robotic Middleware"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 1 — The Need for Robotic Middleware
+
+## Learning Objectives
+
+After completing this chapter, you will be able to:
+
+- Explain why software cannot directly control robotic hardware at scale without a unifying communication layer
+- Define middleware in the context of robotics and describe the problem it solves
+- Describe the role ROS 2 plays as a robotic middleware platform
+- Articulate the benefit of hardware abstraction using a non-technical analogy
+
+## Why Direct Hardware Control Fails in Robotics
+
+Imagine you are building a robot arm. You choose a servo motor from Vendor A, a force sensor from Vendor B, and a depth camera from Vendor C. Each device communicates using a completely different protocol: one uses a proprietary serial binary format, another uses CANbus, and the third uses USB with a vendor-specific SDK.
+
+To make your arm move and perceive the world, you write custom code to talk to each device individually. This works — until Vendor A discontinues their motor and you must switch to Vendor D's alternative. Now your entire motor-control codebase is obsolete. The new motor speaks a different protocol. Every function that touched the old motor must be rewritten.
+
+This is the fundamental failure mode of direct hardware control: **tight coupling between software logic and hardware protocols**. In a simple hobby project, this is tolerable. In a production humanoid robot with dozens of sensors and actuators — each potentially sourced from different vendors, each potentially swapped out mid-product-lifecycle — it becomes unmanageable.
+
+:::warning
+In robotics, hardware changes are not edge cases. Motors wear out, sensors are upgraded, and suppliers change. Software that is tightly coupled to specific hardware becomes a liability, not an asset.
+:::
+
+The same problem appears in software composition. Imagine a perception module that detects obstacles and a navigation module that plans around them. If the perception module is written in Python and the navigation module in C++, and they communicate by calling each other's functions directly, they become inseparable. You cannot update one without recompiling and retesting the other. You cannot run them on separate processors. You cannot replace the perception algorithm without touching the navigation code.
+
+Direct coupling — whether to hardware or to other software modules — creates a system that is brittle, hard to extend, and expensive to maintain.
+
+## The Hardware Abstraction Layer
+
+The solution is to introduce an intermediary: a **Hardware Abstraction Layer (HAL)**. Instead of application logic talking directly to a motor driver, it talks to a standard interface. The HAL translates that standard interface into whatever protocol the specific hardware requires.
+
+Think of it like a universal power adapter. Your laptop charger doesn't care whether the wall socket is British, European, or American — the adapter handles the translation. Your laptop just receives power.
+
+In the robotics context, the HAL means:
+
+- Your navigation algorithm publishes a velocity command using a standard message format
+- The HAL receives that command and translates it into the specific serial bytes that Vendor A's motor controller expects
+- When you swap to Vendor D's motor, you update the HAL driver only — the navigation algorithm is completely unaffected
+
+:::note
+Swapping a sensor in ROS 2 only requires updating its driver node — the rest of the system is unaware of the change. The navigation module, the perception module, and the planning module all continue operating without modification.
+:::
+
+This decoupling is not just convenient. It is architecturally necessary for building systems that can evolve over time without being rebuilt from scratch.
+
+## How ROS 2 Works as Robotic Middleware
+
+ROS 2 (Robot Operating System 2) is the dominant open-source middleware platform for robotics. It is not an operating system in the traditional sense — it does not manage memory, schedule CPU time, or handle file systems. Instead, it provides the **communication infrastructure** that allows independent software modules to exchange data reliably.
+
+The city analogy is useful here. A city is a system of many independent actors — residents, businesses, vehicles — that must coordinate without directly managing each other. The road network is the infrastructure that makes coordination possible. Roads don't build the buildings or run the shops. They provide a standard, shared medium through which movement can occur.
+
+ROS 2 is the road network for your robot's software:
+
+- **Buildings** = hardware devices (motors, cameras, IMUs, LiDARs)
+- **Shops** = AI and decision-making logic (object detectors, path planners, behaviour engines)
+- **Roads** = ROS 2 communication channels
+- **Vehicles** = messages travelling between modules
+
+No building needs to know the internal layout of another building. They communicate via the road network using a shared standard. If a shop relocates (a software module is replaced), the road network doesn't change — traffic simply routes to the new address.
+
+ROS 2 provides three core capabilities that make this possible:
+
+1. **Message passing**: Modules communicate by publishing and subscribing to named channels called Topics — covered in depth in Chapter 2.
+2. **Process isolation**: Each software module runs as an independent process called a Node. Nodes can fail, restart, or be upgraded without bringing down the whole system.
+3. **Hardware-agnostic interfaces**: ROS 2 defines standard message types for common sensor and actuator data. A LiDAR scan is a `sensor_msgs/LaserScan` regardless of which LiDAR manufacturer produced it.
+
+## The DDS Transport System
+
+Beneath ROS 2's user-facing API lies a communication standard called **DDS (Data Distribution Service)**. DDS is an industrial-grade, real-time publish-subscribe messaging standard that handles the low-level work of discovering participants on the network, routing messages between them, and guaranteeing delivery qualities such as reliability and ordering.
+
+You will rarely interact with DDS directly. ROS 2 uses it as its transport layer and exposes a cleaner, robotics-focused API above it. The relationship is analogous to how your web browser uses TCP/IP — you don't configure TCP packet headers to load a webpage; the browser handles that. Similarly, you don't configure DDS discovery parameters to publish a sensor reading; ROS 2 handles that.
+
+:::tip
+You don't need to configure DDS directly. ROS 2 handles transport automatically — think of it as the city's underground plumbing. Water flows to every building on demand; the residents never see the pipes.
+:::
+
+Different DDS implementations (FastDDS, CycloneDDS, Connext) can be swapped underneath ROS 2 depending on performance or licensing requirements — another example of the abstraction principle at work. Your ROS 2 code doesn't change when the DDS implementation changes.
+
+DDS gives ROS 2 properties that matter for physical robots operating in the real world: low latency, configurable reliability, and automatic participant discovery on a local network. A robot's sensor nodes and actuator nodes find each other automatically without a central broker — the system is inherently distributed.
+
+## Summary
+
+Direct hardware control fails in robotics because every hardware device speaks a different protocol, and tight coupling between software and hardware creates systems that are brittle and expensive to maintain. A Hardware Abstraction Layer solves this by introducing a standard interface between application logic and hardware drivers, so that swapping hardware requires only updating the driver, not the entire application. ROS 2 implements this principle as a full middleware platform — providing message passing, process isolation, and hardware-agnostic interfaces through a city-road-network model where Nodes communicate over Topics without direct coupling. Underneath it all, DDS provides the transport layer that ROS 2 sits on top of, handling reliable message delivery automatically so that your robot's software can focus on logic, not plumbing.
+
+<RagChatbot context="module-1" />

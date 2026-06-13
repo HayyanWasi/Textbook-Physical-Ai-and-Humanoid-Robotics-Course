@@ -1,0 +1,176 @@
+---
+title: "Chapter 4 — Defining the Physical Form with URDF"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 4 — Defining the Physical Form with URDF
+
+## Learning Objectives
+
+After completing this chapter, you will be able to:
+
+- Define URDF and explain its role in describing a robot's physical structure to ROS 2
+- Distinguish between a Link and a Joint in a robot skeleton and describe what each one represents
+- Explain the difference between visual geometry and collision geometry and why both are necessary
+- Identify the purpose of the `<inertial>` tag without deriving or computing its mathematical values
+
+## What is URDF and Why It Exists
+
+Before ROS 2 can simulate a robot, visualise it in a 3D tool, or reason about its workspace, it needs a formal description of the robot's physical body. That description is the **URDF** — Unified Robot Description Format.
+
+A URDF file is an XML document that answers three questions about a robot:
+
+1. **What are its body parts?** (defined as Links)
+2. **How do those parts connect and move relative to each other?** (defined as Joints)
+3. **What does each part look like, and how does the physics engine approximate it?** (defined by visual and collision geometry)
+
+The analogy is a blueprint. An architect's blueprint describes the visual appearance of a building — the shapes, proportions, and materials that make it look the way it does. A structural engineer's load diagram describes the same building differently — simplified shapes and mass distributions that a physics calculation can work with. A URDF contains both representations simultaneously, for the same robot body.
+
+:::note
+URDF is not a simulation format. It is a description format. Physics engines and simulators read URDF, but URDF itself contains no physics. It is a neutral description of geometry and structure — the simulation's interpretation of that description is handled externally.
+:::
+
+ROS 2 uses the URDF at runtime to:
+
+- Publish the robot's joint states to the computation graph via the `robot_state_publisher` Node
+- Power visualisation tools like RViz2, which render the robot model in 3D
+- Provide the structural foundation that simulation environments (Gazebo, Isaac Sim) build physics on top of
+
+## Links and Joints — The Robot Skeleton
+
+A **Link** is a single rigid body part. It does not bend or deform — it moves as a unit. Links represent things like:
+
+- The torso of a humanoid
+- An upper arm segment
+- A wheel
+- A camera housing
+- A fingertip
+
+A **Joint** connects two Links and defines how one can move relative to the other. Joints have types:
+
+- **revolute** — rotates around a single axis (like a door hinge or an elbow)
+- **prismatic** — slides along a single axis (like a drawer or a linear actuator)
+- **fixed** — no movement; the two Links are rigidly attached (used for mounting sensors)
+- **continuous** — rotates continuously without limit (like a wheel)
+
+Every joint has a **parent Link** and a **child Link**. The child moves; the parent provides the frame of reference.
+
+```xml
+<!-- Define a rigid body part: the upper arm -->
+<link name="upper_arm">
+  <!-- geometry, mass, and appearance defined inside — see later sections -->
+</link>
+
+<!-- Define a rigid body part: the forearm -->
+<link name="forearm">
+</link>
+
+<!-- Connect them with a revolute joint: the elbow -->
+<joint name="elbow_joint" type="revolute">
+  <parent link="upper_arm"/>   <!-- the fixed reference frame -->
+  <child link="forearm"/>      <!-- the link that rotates -->
+  <axis xyz="0 1 0"/>          <!-- rotate around the Y axis -->
+  <limit lower="-1.57" upper="1.57" effort="100" velocity="1.0"/>
+  <!-- lower/upper are radian limits; effort is max torque; velocity is max rad/s -->
+  <!-- These are structural constraints, not derived quantities -->
+</joint>
+```
+
+A complete URDF for a humanoid robot is a tree of Links connected by Joints — the skeleton. The `base_link` is the root of the tree, and every other Link is a descendant connected through one or more Joints.
+
+## Visual Geometry vs Collision Geometry
+
+Every Link in a URDF can carry two separate geometry descriptions: one for rendering and one for physics.
+
+**Visual geometry** is what the 3D renderer draws. It is typically a high-resolution mesh file — a `.dae` (Collada) or `.stl` file with thousands of polygons, textures, and surface details. This is the geometry that makes your robot look realistic in RViz2 or a simulation environment. Accuracy here means visual fidelity.
+
+**Collision geometry** is what the physics engine uses to detect contact between the robot and the world. High-polygon meshes are computationally expensive to check for collisions — testing whether two meshes with 50,000 polygons each are intersecting requires enormous computation at every physics timestep. Instead, collision geometry uses simplified primitive shapes: boxes, cylinders, and spheres that approximate the real shape closely enough for contact detection without the cost.
+
+:::tip
+Using the full visual mesh for collision detection would be computationally prohibitive. A robot hand with 50,000-polygon fingers uses a cylinder for collision — it's fast and accurate enough for the physics engine to detect whether the hand has touched an object. The visual mesh is for your eyes; the collision mesh is for the physics engine's arithmetic.
+:::
+
+In URDF, visual and collision geometry are sibling elements under the same Link:
+
+```xml
+<link name="upper_arm">
+
+  <!-- What the renderer draws: a detailed mesh -->
+  <visual>
+    <geometry>
+      <mesh filename="package://my_robot/meshes/upper_arm_visual.dae"/>
+    </geometry>
+    <material name="grey">
+      <color rgba="0.5 0.5 0.5 1.0"/>
+    </material>
+  </visual>
+
+  <!-- What the physics engine uses: a simple cylinder -->
+  <collision>
+    <geometry>
+      <cylinder radius="0.04" length="0.3"/>
+      <!-- 4 cm radius, 30 cm long — approximates the arm segment -->
+    </geometry>
+    <!-- No material needed for collision geometry -->
+  </collision>
+
+</link>
+```
+
+The physics engine ignores `<visual>`; the renderer ignores `<collision>`. They coexist in the same file, serving different consumers of the robot description.
+
+## The Inertial Tag and Why It Matters
+
+The `<inertial>` tag is the third element that can appear inside a Link. It describes how mass is distributed throughout the Link's volume. Physics simulators need this information to compute how the Link accelerates when a force is applied — whether it tips, swings, or resists movement.
+
+The `<inertial>` tag is **required for simulation** but **not required for visualisation or joint control**. A URDF without `<inertial>` tags will load and display correctly in RViz2, but a physics simulator will refuse to run it or will assign default values that produce unrealistic behaviour.
+
+:::warning
+Do not derive the inertia tensor manually. Use your robot manufacturer's datasheet or a mesh-analysis tool (such as MeshLab or the URDF inertia tools in ROS 2) to extract these values from the mesh geometry. The numbers go into the XML; you do not calculate them by hand. Incorrect inertial values produce physically implausible simulation behaviour — robots that float, fall over instantly, or vibrate uncontrollably.
+:::
+
+The XML structure of the `<inertial>` tag looks like this:
+
+```xml
+<link name="upper_arm">
+  <inertial>
+    <origin xyz="0 0 0.15" rpy="0 0 0"/>
+    <!-- xyz: position of the centre of mass within the link frame -->
+    <!-- rpy: orientation (roll, pitch, yaw) — often zero for symmetric parts -->
+
+    <mass value="1.2"/>
+    <!-- Total mass of this link in kilograms -->
+
+    <inertia ixx="0.01" ixy="0.0" ixz="0.0"
+             iyy="0.05" iyz="0.0"
+             izz="0.05"/>
+    <!-- The six unique values of the 3x3 inertia tensor -->
+    <!-- Source: manufacturer datasheet or mesh analysis tool — do not compute manually -->
+  </inertial>
+</link>
+```
+
+The values in `<inertia>` come from physical measurement or computational analysis of the mesh. They are provided, not derived. Your job is to put the correct numbers in the correct fields — not to derive them from first principles.
+
+## Building a Robot Description Step by Step
+
+A URDF is assembled in a logical order. Each step builds on the previous one:
+
+**Step 1 — Define all Links**: List every rigid body part of the robot. Start with `base_link` (the root), then add each arm segment, leg segment, torso component, and sensor housing. At this stage, Links are empty — no geometry yet.
+
+**Step 2 — Define all Joints**: Connect the Links by specifying parent-child relationships, joint types, and axis directions. This creates the kinematic skeleton — the tree structure of how the body moves. After this step, the robot has a skeleton with no flesh.
+
+**Step 3 — Add Visual geometry**: Assign mesh files or primitive shapes to each Link's `<visual>` element. After this step, the robot is renderable in RViz2.
+
+**Step 4 — Add Collision geometry**: Assign simplified primitive shapes to each Link's `<collision>` element. After this step, the robot can participate in physics contact detection.
+
+**Step 5 — Add Inertial properties**: Populate each Link's `<inertial>` element with mass and inertia values from datasheets or mesh analysis. After this step, the robot can be simulated with correct physical dynamics.
+
+Each step produces a URDF that is valid for some purposes but not others. A URDF with only Steps 1–2 is a skeleton that can be controlled but not rendered. Steps 1–3 adds rendering. Steps 1–4 adds collision. Steps 1–5 adds full simulation fidelity.
+
+## Summary
+
+URDF is the XML format ROS 2 uses to formally describe a robot's physical body — not as a simulation, but as a neutral structural description that visualisation tools and physics engines both consume. The skeleton of a URDF is a tree of Links (rigid body parts) connected by Joints (movement relationships), with the type of each Joint — revolute, prismatic, fixed, or continuous — determining how the child Link can move relative to its parent. Each Link carries two separate geometry descriptions: visual geometry for rendering (high-detail mesh) and collision geometry for the physics engine (simplified primitive), because the two consumers have fundamentally different accuracy-versus-performance tradeoffs. The `<inertial>` tag completes each Link's description for simulation by specifying mass and its distribution — values that come from datasheets and mesh analysis tools, not from manual derivation.
+
+<RagChatbot context="module-1" />
