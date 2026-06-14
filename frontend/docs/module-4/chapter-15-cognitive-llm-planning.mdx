@@ -1,0 +1,220 @@
+---
+title: "Chapter 15 — Cognitive LLM Planning: From Language to Executable JSON"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 15 — Cognitive LLM Planning: From Language to Executable JSON
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+- Explain the role of the Cognition tier in the three-tier VLA architecture
+- Design a system prompt that includes a role definition, schema injection, and output-format constraint
+- Trace a high-level command through the LLM decomposition process to a complete JSON action array
+- Identify the three fields of the minimal JSON action schema: `skill`, `target`, and `parameters`
+- Describe the retry-with-feedback loop for recovering from malformed LLM output
+
+---
+
+## The Cognition Tier's Role: From Vague to Executable
+
+The Perception tier (Chapter 14) hands the Cognition tier a natural-language string. That string might be "Clean the room." It might be "Help me." It might be "The thing by the window." None of these are directly executable by a robot — they are intent descriptions, not instructions.
+
+The Cognition tier's job is to take that intent description and produce a precisely structured action plan that the Action tier can execute without further interpretation. No ambiguity. No open-ended reasoning. Just a valid, ordered list of discrete robot skills.
+
+The tool for this is a Large Language Model, prompted with carefully crafted instructions that constrain its output to a machine-readable format.
+
+:::note
+The LLM in the Cognition tier is not controlling the robot directly. It is reasoning about what should be done and encoding that reasoning as structured data. The Action tier (Chapter 16) is what actually sends commands to the robot's motors. This separation is intentional: you can swap the LLM for a different model, add safety filters between the tiers, or update the action schema — all without modifying the Action tier.
+:::
+
+---
+
+## Prompt Engineering for Structured Output
+
+The LLM must be configured through a *system prompt* — a set of instructions provided to the model before every user message. For the Cognition tier, the system prompt has three essential components.
+
+### Component 1 — Role Definition
+
+The system prompt begins by telling the model what it is and what it is responsible for. This scopes its reasoning and prevents conversational, explanatory, or uncertain responses.
+
+Example role definition:
+> *"You are a robot task planner for a humanoid robot assistant. Your job is to translate high-level human instructions into an ordered sequence of primitive robot skills. You must not generate explanations, questions, or commentary — only the JSON action array."*
+
+Without a role definition, an LLM may respond with something like "That sounds like a great request! Here is how the robot might approach that task..." followed eventually by some JSON. The role definition eliminates the preamble entirely.
+
+### Component 2 — Schema Injection
+
+The system prompt provides the exact structure the LLM must produce. The minimal JSON action schema for this course is:
+
+```json
+{
+  "skill": "string — the name of a primitive robot skill",
+  "target": "string — the object or location the skill acts on",
+  "parameters": "object — optional key-value pairs for skill configuration"
+}
+```
+
+The full response must be a JSON array where each element conforms to this schema. The schema is injected directly into the system prompt so the model has it in context at every inference step.
+
+The available primitive skills are:
+- `navigate_to` — move to a named location or object position
+- `grasp` — pick up a target object
+- `place` — put an object down at a target location
+- `return_to` — navigate back to a home position or previous location
+- `wait` — pause execution for a specified duration
+- `scan` — survey the environment to locate a target object
+
+### Component 3 — Output-Format Constraint
+
+The system prompt explicitly forbids non-JSON output:
+
+> *"Your response MUST be a valid JSON array. Do not include any text outside the JSON array. Do not use markdown code fences. Do not add explanations or commentary before or after the array."*
+
+LLMs default to generating human-readable text. Without this constraint, the model will often wrap its JSON in helpful explanatory prose — "Here is the action plan:" — which breaks any downstream JSON parser.
+
+:::warning
+Even with an explicit output-format constraint, LLMs occasionally produce malformed JSON: a missing closing bracket, an extra comma, an unescaped character in a string. This is not a failure of the prompt engineering approach — it is a known property of probabilistic text generation. The retry-with-feedback loop described later in this chapter handles these cases systematically.
+:::
+
+---
+
+## A Complete Worked Example
+
+This section presents the full decomposition of a real command, step by step. It is designed to be self-contained: after reading this section, you should be able to decompose a novel command without referring to Chapter 16.
+
+**Input command (received from Perception tier):** `"Clean the room."`
+
+### Step 1 — Intent Decomposition
+
+The LLM reasons about what "clean the room" entails:
+
+- Survey the environment to identify objects that are out of place
+- Navigate to each displaced object
+- Pick it up
+- Move it to its correct location
+- Return to a neutral position when done
+
+This reasoning is the LLM's internal process — it is not part of the output. The output is only the JSON array below.
+
+### Step 2 — JSON Output
+
+The LLM produces the following response:
+
+```json
+[
+  {
+    "skill": "scan",
+    "target": "room",
+    "parameters": { "mode": "floor_items" }
+  },
+  {
+    "skill": "navigate_to",
+    "target": "item_1",
+    "parameters": {}
+  },
+  {
+    "skill": "grasp",
+    "target": "item_1",
+    "parameters": { "grip_type": "pinch" }
+  },
+  {
+    "skill": "place",
+    "target": "item_1_home_location",
+    "parameters": {}
+  },
+  {
+    "skill": "return_to",
+    "target": "home_position",
+    "parameters": {}
+  }
+]
+```
+
+### Step 3 — Validation
+
+The Action tier's JSON parser validates three things:
+
+1. The response is a valid JSON array (syntactically correct).
+2. Each element contains `skill`, `target`, and `parameters` keys.
+3. The `skill` value is a recognised primitive from the known skill list.
+
+All three checks pass. The plan is forwarded to the Action tier for execution.
+
+Notice what the JSON array does **not** contain: no motor torques, no joint angles, no ROS 2 topic names, no hardware-specific details. The Cognition tier works entirely in the language of high-level intent. The Action tier (Chapter 16) translates each skill name into the specific hardware commands required to execute it.
+
+---
+
+## The Retry-with-Feedback Loop
+
+Malformed JSON is an inevitable occurrence when using LLMs for structured output. The correct response is not to ignore the possibility — it is to build a recovery mechanism into the system.
+
+The retry-with-feedback loop works as follows:
+
+```
+LLM generates response
+        │
+        ▼
+JSON parser validates response
+        │
+  ┌─────┴─────┐
+VALID       INVALID
+  │               │
+  ▼               ▼
+Forward to    Append error to LLM context:
+Action tier   "Your previous response was not valid JSON.
+               Error: [specific parser error message].
+               Please regenerate the JSON array only,
+               with no text before or after it."
+                  │
+                  ▼
+             LLM regenerates response
+                  │
+                  ▼
+          (validate again — max 3 attempts)
+                  │
+             if still INVALID:
+                  │
+                  ▼
+        Log failure; return to user:
+        "I could not understand that instruction.
+         Please rephrase and try again."
+```
+
+Two design decisions are worth noting:
+
+**The error message is specific.** The feedback includes the exact parse error from the JSON parser — for example, "Unexpected token '}' at position 47." Vague feedback ("your response was wrong") gives the LLM no information to act on. A specific error tells the model precisely where the structural problem is.
+
+**The cap is three attempts.** Without a cap, a persistently malformed response could loop indefinitely. Three attempts is enough to recover from transient generation errors while preventing runaway retries. If all three attempts fail, the system surfaces a human-readable error message rather than silently failing or executing a partially-parsed plan.
+
+---
+
+## Why the Cognition Tier Cannot Be Simpler
+
+A natural question is: why not replace the LLM with a lookup table that maps known commands to JSON plans? This would be faster, cheaper, and fully deterministic. The answer has three parts.
+
+**Vocabulary explosion.** The number of valid natural-language phrasings for a humanoid robot task is effectively unbounded. "Bring me water," "fetch me some water," "get water," "can you get me water," "I need water," "water, please" — a lookup table covering all variants of every possible task would require thousands of entries and would still miss novel phrasings that users naturally produce.
+
+**Context insensitivity.** A lookup table cannot handle commands with implicit referents: "bring me the other one," "put it back," "move that over there." These require reasoning about what was previously said or done — conversational context that a table cannot hold.
+
+**Compositional commands.** "Clean the living room and then bring me tea" is a compound instruction that requires decomposition into an ordered multi-step plan. A lookup table maps one phrase to one output. It cannot split a compound command into a sequenced JSON array with the right ordering and dependencies.
+
+:::tip
+The LLM does not need to be large to perform well in the Cognition tier. Decomposing short natural-language commands into 3–8 step JSON arrays is a narrow, well-defined reasoning task. A small instruction-tuned model (7–13 billion parameters) specifically fine-tuned on action sequence data can outperform a general-purpose large model for this specific role, with significantly lower inference latency — which matters for a humanoid robot waiting for its next command.
+:::
+
+---
+
+## Summary
+
+The Cognition tier uses a Large Language Model prompted with three components — a role definition, a schema injection, and an output-format constraint — to decompose high-level natural-language commands into ordered JSON action arrays conforming to the `skill` / `target` / `parameters` schema.
+
+The minimal action schema defines the contract between the Cognition and Action tiers: the LLM never references motor hardware, and the Action tier never parses natural language. The two tiers communicate exclusively through this schema.
+
+The retry-with-feedback loop handles the inevitable cases of malformed LLM output by feeding the specific parse error back to the model for correction, with a three-attempt cap and a human-readable failure message if all attempts are exhausted.
+
+Chapter 16 wires this JSON output to the ROS 2 Action Bridge and shows how each primitive skill maps to a Nav2 navigation goal or a MoveIt arm trajectory in the complete capstone system.
+
+<RagChatbot context="module-4" />

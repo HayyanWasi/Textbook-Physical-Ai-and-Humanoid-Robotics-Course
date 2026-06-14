@@ -1,0 +1,115 @@
+---
+title: "Chapter 10 — Isaac Sim and Synthetic Training Data"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 10 — Isaac Sim and Synthetic Training Data
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+- Explain the sim-to-real gap and why it exists as a practical challenge in robotics AI
+- Distinguish between physics simulation (Gazebo) and photorealistic simulation (Isaac Sim) by *purpose*, not by visual appearance
+- Describe what synthetic training data is and why it is preferable to collected real-world data for many perception tasks
+- Explain how domain randomisation reduces the sim-to-real gap at a conceptual level
+- Identify which simulator you would use for a given task — behaviour testing or perception training
+
+---
+
+## Two Simulators, Two Different Jobs
+
+Both Gazebo and Isaac Sim are simulators. But asking "which simulator should I use?" requires a prior question: what are you trying to produce?
+
+A simulator is a tool. Its value depends entirely on what it is designed to output. A flight simulator produces a realistic experience of flying so that pilots can develop judgment — when to bank, how to handle turbulence, what to do in an emergency. It does not teach you what a cockpit looks like from the outside. A photography training app shows you thousands of example images so you can learn to identify compositions and lighting techniques. It does not teach you how to fly.
+
+Both involve simulation. Neither trains the same skill.
+
+Gazebo produces realistic *physics*. It tells you how a robot will move, fall, or collide under simulated forces. Its output is robot joint states, collision events, and sensor readings governed by physical laws.
+
+Isaac Sim produces realistic *images*. It tells you what the robot will see when its cameras look at a realistically rendered scene. Its output is photorealistic frames, depth maps, and automatically labelled object data.
+
+One trains robot *behaviour*. The other trains robot *vision*.
+
+:::note
+If you completed Module 2, you used Gazebo to test how your robot moves through space — verifying that it avoids obstacles, maintains balance, and responds correctly to physical events. In this chapter, Isaac Sim is used for a completely different purpose: teaching the robot what to *see*, not how to *move*.
+:::
+
+---
+
+## Gazebo as a Physics Classroom (Module 2 in Context)
+
+Gazebo's strength is accurate physical simulation. It models rigid body dynamics — the way objects accelerate, decelerate, collide, and deform under forces. It simulates joint torques, contact friction, gravity effects on mass distributions, and sensor noise models that approximate real hardware behaviour.
+
+When you ran a robot in Gazebo during Module 2, the simulation answered questions like: "Does this navigation algorithm keep the robot from tipping over on an incline? Does the arm reach the target position without exceeding joint limits? Does the sensor noise model produce realistic readings?"
+
+These are physics questions. Gazebo's visual rendering is intentionally abstract — it is accurate enough for developers to inspect the scene, but it is not designed to look like a real camera's output. The visual quality is irrelevant to Gazebo's purpose, because the physics — not the pixels — are what matter.
+
+A robot trained in Gazebo learns *what to do*. It does not learn *what it is looking at*.
+
+---
+
+## Isaac Sim as a Perception Training Ground
+
+Isaac Sim's strength is visual fidelity. It renders environments using the same ray-tracing and material simulation techniques used in professional film visual effects — producing images that are difficult to distinguish from real camera footage.
+
+This matters because perception AI models — the systems that identify objects, estimate distances, and classify scenes — learn from images. Specifically, they learn from enormous quantities of *labelled* images: images where every object in the frame has already been identified and located by a human annotator.
+
+Collecting that data in the real world is expensive, slow, and for a humanoid robot, potentially dangerous. A team photographing real chairs, tables, and doors in varied conditions — different angles, distances, lighting, clutter — might produce a few thousand labelled images over several weeks of careful work.
+
+Isaac Sim can generate those same images automatically. The virtual scene is rendered under controlled conditions, and because the simulation knows the exact position and class of every object in the scene, it produces labels automatically — no human annotation required. The same team that needed weeks for a few thousand real images can generate hundreds of thousands of labelled synthetic images in hours.
+
+:::tip
+Synthetic data is not "fake" data — it is precisely labelled data generated in a controlled environment. The AI model does not know whether its training images came from a camera or a renderer. It sees pixels. If those pixels are realistic enough, it learns to recognise the corresponding objects in the real world.
+:::
+
+---
+
+## Gazebo vs. Isaac Sim: A Direct Comparison
+
+| Dimension | Gazebo | Isaac Sim |
+|---|---|---|
+| **Primary Purpose** | Physics simulation for testing robot behaviour | Photorealistic rendering for training perception AI |
+| **Output** | Robot joint states, collision data, sensor noise readings | Rendered images, depth maps, auto-labelled scene data |
+| **What It Trains** | Robot motion policies (when to stop, turn, balance) | Vision models (what objects are, where they are) |
+| **Typical Use In This Course** | Module 2 — testing navigation and physical response | Module 3 — generating synthetic perception training data |
+| **Realism Goal** | Accurate forces, torques, and contact physics | Accurate lighting, material textures, and shadows |
+| **What It Does NOT Do** | Teach the robot to recognise objects visually | Simulate rigid body physics accurately for motion testing |
+
+These tools are not competitors — they address different stages of building a capable humanoid robot. A complete development pipeline uses both: Gazebo to verify how the robot moves, Isaac Sim to train what the robot sees. A robot that can navigate perfectly in Gazebo but cannot identify a chair when it sees one is not ready for the real world. Neither is a robot whose vision models are excellent but whose navigation algorithm causes it to tip over on every incline.
+
+---
+
+## The Sim-to-Real Gap and How Synthetic Data Bridges It
+
+Training on synthetic data carries a risk: the simulated images, however photorealistic, may differ in subtle ways from images captured by a real camera. Real cameras have lens distortion — the image bends slightly at the edges. Real scenes have dust, smudges on lenses, motion blur, and lighting conditions that change second by second. A model trained on perfect synthetic renders may fail on imperfect real images because it learned features that only appear in simulation.
+
+This is called the **sim-to-real gap**, and it is a real engineering challenge.
+
+Isaac Sim addresses it through **domain randomisation**: deliberately introducing variation into the synthetic training scenes so that the model cannot memorise any single configuration. During training, the system automatically varies:
+
+- Lighting direction, colour, and intensity — from warm midday sun to cool fluorescent office lighting to evening tungsten
+- Object textures and colours — the same chair rendered in a dozen different upholstery materials
+- Camera parameters — different focal lengths, noise levels, and slight lens distortion
+- Scene clutter — background objects, items partially occluding the target
+
+If the model trains on a thousand variations of the same chair under a thousand different conditions, it develops a representation of "chair" that is robust to any single condition it might encounter in the real world. The model cannot overfit to simulation artefacts because there is no single artefact to overfit to.
+
+:::warning
+The sim-to-real gap does not disappear automatically. Domain randomisation reduces it significantly — but real-world fine-tuning is often still required after initial synthetic training. The goal is not to eliminate the gap entirely on the first pass; it is to make the initial model good enough that real-world fine-tuning requires only a small amount of real data rather than starting from scratch.
+:::
+
+---
+
+## Summary
+
+Gazebo and Isaac Sim are both simulators, but they serve opposite purposes — Gazebo trains robot *behaviour* through physics, while Isaac Sim trains robot *vision* through photorealistic rendering. Conflating them is the most common source of confusion when students transition from Module 2 to Module 3.
+
+Synthetic training data generated by Isaac Sim is not a shortcut — it is a scalable alternative to expensive real-world data collection, with the added benefit of automatic labelling and unlimited variation. A single Isaac Sim setup can generate in hours what a field data collection team would take months to produce.
+
+The sim-to-real gap describes the risk that a model trained in simulation may underperform on real-world data; domain randomisation reduces this risk by exposing the model to an enormous variety of simulated conditions during training.
+
+Chapter 11 moves from training the robot's vision to running it: how Isaac ROS processes live camera streams to let the robot understand and map the environment around it in real time.
+
+<RagChatbot context="module-3" />
