@@ -35,6 +35,17 @@ const sidebars: SidebarsConfig = {
         'module-3/chapter-12-nav2-bipedal-planning',
       ],
     },
+    {
+      type: 'category',
+      label: 'Module 4: Vision-Language-Action',
+      collapsed: false,
+      items: [
+        'module-4/chapter-13-vla-convergence',
+        'module-4/chapter-14-voice-whisper',
+        'module-4/chapter-15-cognitive-llm-planning',
+        'module-4/chapter-16-capstone-autonomous-humanoid',
+      ],
+    },
   ],
 };
 

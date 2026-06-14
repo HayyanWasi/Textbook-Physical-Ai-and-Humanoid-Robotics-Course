@@ -1,0 +1,135 @@
+---
+title: "Chapter 14 — Voice-to-Action: Parsing Spoken Commands with Whisper"
+---
+
+import RagChatbot from '@site/src/components/RagChatbot';
+
+# Chapter 14 — Voice-to-Action: Parsing Spoken Commands with Whisper
+
+## Learning Objectives
+
+By the end of this chapter, you will be able to:
+
+- Describe what Whisper is and explain why it is suited for robotics voice interfaces
+- Name the three stages that transform raw audio into a text string: audio chunking, spectrogram generation, and token decoding
+- State what data type exits the Perception tier (natural-language string — not audio bytes, not JSON)
+- Identify at least two failure modes in voice transcription (background noise, homophone ambiguity) and describe how downstream tiers detect them
+- Explain why voice is the primary human-robot interface in the capstone architecture
+
+---
+
+## Why Voice is the Natural Human-Robot Interface
+
+A humanoid robot operating in a home, hospital, or warehouse must accept instructions from non-technical users who have no robotics training. A touchscreen requires the user to be nearby and to navigate a menu system. A mobile app requires the user to have the app installed, authenticated, and ready. A keyboard is impractical for someone carrying items, working with both hands, or responding to an emergency.
+
+Voice is the natural, hands-free, low-latency interface that requires no training and no hardware beyond a microphone. It is the interface humans have used with each other for millennia.
+
+Whisper is the mechanism that bridges the physical world — sound waves in air — and the digital world — text strings that a language model can reason about.
+
+:::note
+Whisper is an automatic speech recognition (ASR) model developed by OpenAI. It is trained on hundreds of thousands of hours of multilingual audio and is designed to be robust to diverse accents, speaking speeds, and acoustic environments — properties that make it suitable for deployment in variable real-world conditions such as noisy factory floors, hospital corridors, and home kitchens.
+:::
+
+---
+
+## What Whisper Receives: Raw Audio Bytes
+
+A microphone converts air pressure variations into an electrical signal. That signal is digitised into a stream of audio samples — typically 16,000 samples per second (16 kHz sampling rate), each represented as a signed integer. This is the raw input stream the robot's software system receives.
+
+The stream has no inherent linguistic structure. It is a sequence of numbers representing air pressure at each millisecond — nothing more. Whisper's job is to find the linguistic structure hidden within those numbers.
+
+Think of it this way: raw audio bytes are to Whisper what raw pixels are to a vision model. Just as a vision model receives intensity values at grid positions and infers objects, Whisper receives amplitude values at time positions and infers words.
+
+---
+
+## Stage 1 — Audio Chunking
+
+Whisper does not process an unlimited audio stream in one continuous pass. Instead, it divides the incoming audio into fixed-length windows — typically 30-second chunks. This is a practical engineering decision: processing smaller, bounded chunks limits memory usage and enables real-time transcription of long inputs.
+
+For robotics voice interfaces, this means a command is captured and processed as a single 30-second chunk. Most robot commands are far shorter — a typical spoken command takes 2–4 seconds — so the chunk is padded with silence to reach the 30-second window size.
+
+:::tip
+A 30-second audio chunk at 16 kHz contains 480,000 audio samples. A short spoken command — "Bring me the red mug from the kitchen" — takes approximately 3.5 seconds, occupying 56,000 of those samples. The remaining samples are silence padding that Whisper handles gracefully.
+:::
+
+The chunk is now a fixed-size block of audio data, ready for the next stage.
+
+---
+
+## Stage 2 — Spectrogram Generation
+
+A raw audio waveform shows *when* sounds occur — amplitude over time — but it does not reveal *which frequencies* are present at each moment. Human speech is composed of multiple frequency components simultaneously: the vowel sound in "bring" has energy at different frequencies than the consonant "b." To find linguistic patterns, Whisper needs a view of the audio that exposes this frequency structure.
+
+A spectrogram is exactly that. It is a different representation of the same audio data: frequency vs. time, with brightness indicating how much energy is present at each frequency at each instant.
+
+Whisper converts each 30-second audio chunk into an 80-channel log-mel spectrogram — a standardised frequency representation tuned to the characteristics of human speech.
+
+Think of a spectrogram as a musical score for the sound. A raw audio waveform tells you the air pressure at every millisecond. A musical score tells you which notes are being played at each point in time, and how loudly. Whisper reads this score and finds the word patterns within it.
+
+---
+
+## Stage 3 — Token Decoding
+
+With the spectrogram computed, Whisper produces a text transcript one token at a time. A token is roughly a syllable or a short word. At each step, the model predicts the most likely next token given the full spectrogram and all the tokens generated so far.
+
+When the model predicts the end-of-sequence token, transcription is complete. The output is a UTF-8 text string — the natural-language representation of what the model believes was spoken.
+
+This string is the **Perception tier's only output**. It is what crosses the Perception-Cognition tier boundary (introduced in Chapter 13).
+
+:::note
+Whisper's standard output is a plain string. It does not annotate each word with a confidence score. This means downstream systems must detect transcription errors indirectly — by checking whether the string can be parsed into a valid command — rather than by inspecting per-word probabilities. This has implications for the failure modes described in the next section.
+:::
+
+---
+
+## Failure Modes in the Perception Tier
+
+Whisper is robust, but no transcription system is perfect. Two primary failure modes affect robot deployments.
+
+### Failure Mode 1 — Background Noise
+
+In environments with competing audio sources — a television, industrial machinery, multiple people talking simultaneously — Whisper may incorporate ambient sounds into the transcript, or fail to cleanly identify a command word that is partially masked by noise.
+
+The failure is *silent*: Whisper still produces a string, but the string may be garbled, truncated, or contaminated with transcribed ambient sound. A noisy command like "bring me thum—" instead of "bring me the mug" passes through the Perception tier without any flag.
+
+**How it is detected downstream:** The Cognition tier (Chapter 15) validates that its JSON output conforms to the defined action schema. If the garbled string produces a malformed or empty JSON array, the retry-with-feedback loop activates. The failure is discovered at the Cognition output boundary, not at the Perception stage — which is precisely why the three-tier boundary design matters.
+
+### Failure Mode 2 — Homophone Ambiguity
+
+English is full of words that sound identical but mean different things: "bear" and "bare," "meet" and "meat," "flower" and "flour," "two" and "to." In a robotics context, "bring me the flower vase" and "bring me the flour base" could sound identical in casual speech.
+
+Whisper selects the most probable interpretation based on linguistic context — it predicts the word that is statistically most likely given the surrounding words and the acoustic signal. But it has no knowledge of the robot's physical environment. It cannot see whether there is a vase or a flour canister in the room.
+
+**How it is detected downstream:** The Cognition tier may detect the ambiguity if the resulting action plan references an object that does not match the robot's known object inventory. The robot's vision system can also perform a confirmation step — checking whether the intended object is visible before executing — but this is an Action tier responsibility.
+
+:::warning
+Neither failure mode is a defect in Whisper. They are inherent properties of speech as a communication channel — ambiguity exists in spoken language regardless of which ASR system processes it. Robust voice interfaces always include downstream validation layers. The three-tier architecture exists precisely to catch these failures at well-defined, inspectable boundaries rather than letting them propagate silently through a monolithic system.
+:::
+
+---
+
+## From Audio to String: A Complete Trace
+
+Here is the complete path for the spoken command "Bring me the red mug from the kitchen":
+
+1. The microphone records 3.2 seconds of audio, producing 51,200 samples at 16 kHz.
+2. The audio stream is packaged into a 30-second chunk, padded with silence to fill the window.
+3. The chunk is converted to an 80-channel log-mel spectrogram.
+4. Whisper decodes the spectrogram token by token, generating the transcript: `"Bring me the red mug from the kitchen."`
+5. The string is passed to the Cognition tier as its sole input.
+
+At step 5, the Perception tier's job is complete. No audio bytes cross the tier boundary — only the string. The Cognition tier never knows whether the instruction was spoken, typed, or received through a different source. To the LLM, all strings look the same — which means the same cognitive planner can be driven by voice, text, or any other string-producing Perception component.
+
+---
+
+## Summary
+
+Whisper transforms raw audio bytes into a natural-language string through three stages: audio chunking (dividing the stream into bounded 30-second windows), spectrogram generation (converting amplitude-over-time into frequency-over-time to reveal speech structure), and token decoding (predicting the transcript word by word from the spectrogram).
+
+The string that exits Whisper is the sole input to the Cognition tier — the Perception-Cognition boundary is a clean data-type handoff, and no audio information crosses it.
+
+Two primary failure modes — background noise and homophone ambiguity — produce plausible-looking but incorrect strings; detection and recovery happen at the Cognition tier output boundary through JSON schema validation and the retry-with-feedback loop, not at the Perception stage itself.
+
+Chapter 15 takes this string and shows how an LLM breaks it down into a structured JSON action plan that the robot can execute step by step.
+
+<RagChatbot context="module-4" />
