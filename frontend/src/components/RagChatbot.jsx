@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-const API_URL = 'http://localhost:8000/api/chat';
+const API_URL = (process.env.REACT_APP_API_URL || process.env.DOCUSAURUS_API_URL || 'http://localhost:8000') + '/api/chat';
 
 export default function RagChatbot({ context, placeholder }) {
   const [question, setQuestion] = useState('');
