@@ -4,7 +4,7 @@ import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 
 export default function RagChatbot({ context, placeholder }) {
   const { siteConfig } = useDocusaurusContext();
-  const API_URL = (siteConfig.customFields.apiUrl) + '/api/chat';
+  const API_URL = (siteConfig.customFields?.apiUrl || 'http://localhost:8000') + '/api/chat';
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [sources, setSources] = useState([]);
@@ -36,7 +36,7 @@ export default function RagChatbot({ context, placeholder }) {
         setSources(data.sources || []);
       }
     } catch {
-      setError('Could not reach the backend. Make sure the server is running on port 8000.');
+      setError('Could not reach the backend. Please try again in a moment.');
     } finally {
       setLoading(false);
     }
