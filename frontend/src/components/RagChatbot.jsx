@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 
-const API_URL = (process.env.REACT_APP_API_URL || process.env.DOCUSAURUS_API_URL || 'http://localhost:8000') + '/api/chat';
 
 export default function RagChatbot({ context, placeholder }) {
+  const { siteConfig } = useDocusaurusContext();
+  const API_URL = (siteConfig.customFields.apiUrl) + '/api/chat';
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [sources, setSources] = useState([]);
