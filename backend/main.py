@@ -43,14 +43,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Textbook RAG API", version="1.0.0", lifespan=lifespan)
 
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000")
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
 _allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
+    allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["Content-Type"],
+    allow_headers=["*"],
 )
 
 
