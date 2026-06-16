@@ -10,6 +10,16 @@ yangshun:
     github: yangshun
     newsletter: https://www.greatfrontend.com
 
+hayyan:
+  name: Hayyan Wasi
+  title: Course Developer & Roboticist
+  url: https://github.com/HayyanWasi
+  image_url: /img/hayyan.jpg
+  page: true
+  socials:
+    linkedin: hayyanwasi
+    github: HayyanWasi
+
 slorber:
   name: Sébastien Lorber
   title: Docusaurus maintainer
