@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   customFields: {
-    apiUrl: process.env.API_URL || 'http://localhost:8000',
+    apiUrl: process.env.API_URL || 'https://textbook-physical-ai-and-humanoid.onrender.com',
   },
   title: 'My Site',
   tagline: 'Dinosaurs are cool',
